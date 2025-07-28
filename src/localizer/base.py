@@ -1,7 +1,6 @@
 from abc import abstractmethod
 from typing import Any, Generic, Type, TypeVar, cast, final
-import pandas as pd
-from type import SensorType
+from ..type import SensorType
 import logging
 
 DataType = TypeVar("DataType")

@@ -1,7 +1,7 @@
 from typing import TypedDict, final
 
 import pandas as pd
-from localizer.base import LocalizerBase
+from src.localizer.base import LocalizerBase
 
 
 class GposData(TypedDict):

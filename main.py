@@ -1,14 +1,18 @@
+from typing import cast
 import click
 import logging
 import colorlog
 import os
 from dotenv import load_dotenv
+from src.pipeline import competition_pipeline, demo_pipeline
+from src.type import EnvVars
 
 logger = colorlog.getLogger()
 
 
 @click.command()
-@click.option("--demo", is_flag=True, help="DEMOモード (default: False)")
+@click.option("-d", "--demo", is_flag=True, help="DEMOモード (default: False)")
+@click.option("-w", "--maxwait", default=0.5, help="最大待機時間 (default: 0.5秒)")
 @click.option(
     "-l",
     "--loglevel",
@@ -16,11 +20,23 @@ logger = colorlog.getLogger()
     type=click.Choice(["debug", "info", "warning", "error", "critical"]),
     help="出力ログレベル (default: info)",
 )
-def main(demo=False, loglevel="info"):
+def main(demo: bool, maxwait: float, loglevel="info"):
     init_logging(loglevel)
-    load_env(demo)
+    env_vars = load_env(demo)
 
-    # TODO
+    if not env_vars:
+        logger.error("環境変数の読み込みに失敗しました")
+        return
+
+    evaal_api_server = env_vars["EVAAL_API_SERVER"]
+    trial = env_vars["TRIAL_ID"]
+
+    if demo:
+        demo_pipeline(logger, trial, maxwait, evaal_api_server)
+    else:
+        competition_pipeline(logger, trial, maxwait, evaal_api_server)
+
+    logger.info("完了しました")
 
 
 def init_logging(loglevel):
@@ -49,24 +65,39 @@ def init_logging(loglevel):
     logger.addHandler(handler)
 
 
-def load_env(demo: bool):
-    """環境変数のチェック"""
+def load_env(demo: bool) -> EnvVars | None:
+    """
+    環境変数のチェック
+    """
+
     if demo:
         load_dotenv(dotenv_path=".env.demo", override=True)
     else:
         load_dotenv(dotenv_path=".env.competition", override=True)
 
     undefined_vars: list[str] = []
+    vars: dict[str, str] = {}
 
     if "EVAAL_API_SERVER" not in os.environ or not os.environ["EVAAL_API_SERVER"]:
         undefined_vars.append("EVAAL_API_SERVER")
+    elif not os.environ["EVAAL_API_SERVER"].endswith("/"):
+        undefined_vars.append("EVAAL_API_SERVER")
+        vars["EVAAL_API_SERVER"] = os.environ["EVAAL_API_SERVER"] + "/"
+        logger.warning("EVAAL_API_SERVER の末尾に `/` を追加しました。")
+    else:
+        vars["EVAAL_API_SERVER"] = os.environ["EVAAL_API_SERVER"]
+
+    if "TRIAL_ID" not in os.environ or not os.environ["TRIAL_ID"]:
+        undefined_vars.append("TRIAL_ID")
+    else:
+        vars["TRIAL_ID"] = os.environ["TRIAL_ID"]
 
     if len(undefined_vars) > 0:
         logger.error(f"環境変数が設定されていません: {', '.join(undefined_vars)}")
-        return False
+        return None
 
     logger.info("環境変数 OK")
-    return True
+    return cast(EnvVars, vars)
 
 
 if __name__ == "__main__":

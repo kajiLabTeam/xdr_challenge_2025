@@ -1,6 +1,6 @@
 from logging import Logger
 from typing import cast
-from type import ALLOWED_SENSOR_TYPES, SensorType
+from ..type import ALLOWED_SENSOR_TYPES, SensorType
 from .acc import AccLocalizer
 from .ahrs import AhrsLocalizer
 from .gpos import GposLocalizer

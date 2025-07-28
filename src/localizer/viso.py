@@ -1,5 +1,5 @@
 from typing import TypedDict
-from localizer.base import LocalizerBase
+from src.localizer.base import LocalizerBase
 
 
 class VisoData(TypedDict):
