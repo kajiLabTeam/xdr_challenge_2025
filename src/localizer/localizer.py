@@ -1,5 +1,6 @@
 from logging import Logger
-from type import SensorType
+from typing import cast
+from type import ALLOWED_SENSOR_TYPES, SensorType
 from .acc import AccLocalizer
 from .ahrs import AhrsLocalizer
 from .gpos import GposLocalizer
@@ -73,10 +74,12 @@ class Localizer:
                 continue
 
             parts = line.strip().split(";")
-            sensor_type: SensorType = parts[0]
+            sensor_type = parts[0]
             data_row: list[str] = parts[1:]
 
-            row_dict = self._parse_data(sensor_type, data_row)
-            rows.append((sensor_type, row_dict))
+            if sensor_type in ALLOWED_SENSOR_TYPES:
+                rows.append((cast(SensorType, sensor_type), data_row))
+            else:
+                self.logger.error(f"{sensor_type}: 存在しないセンサー種類です。")
 
         return rows
