@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar, final
+from typing import Any, Generic, Type, TypeVar, cast, final
 import pandas as pd
 from type import SensorType
 import logging
@@ -9,7 +9,7 @@ DataType = TypeVar("DataType")
 
 class LocalizerBase(Generic[DataType]):
     key: str
-    columns: dict[str, str | float | bool]
+    columns: dict[str, Type[str | float | bool]]
     data: list[DataType]
 
     @final
@@ -36,11 +36,6 @@ class LocalizerBase(Generic[DataType]):
             cls.logger.error(msg)
             raise ValueError(msg)
 
-        if not callable(getattr(cls, "_to_position_df")):
-            msg = f"子クラス({cls.__name__}) では _to_position_df メソッドを実装する必要があります。"
-            cls.logger.error(msg)
-            raise TypeError(msg)
-
     @final
     def append(self, sensor_type: SensorType, data: list[str]) -> None:
         """
@@ -60,32 +55,6 @@ class LocalizerBase(Generic[DataType]):
 
         self.data.append(self._parse_data(data))
 
-    @abstractmethod
-    def _to_position_df(self, df) -> pd.DataFrame:
-        """
-        self.plot_map への引数に変換するためのメソッド
-        (子クラス実装用)
-
-        Returns:
-            pd.DataFrame: 位置情報を含むデータフレーム
-        """
-        raise NotImplementedError("このメソッドはサブクラスで実装する必要があります。")
-
-    @final
-    def to_position_df(self, df) -> pd.DataFrame:
-        """
-        self.plot_map への引数に変換するためのメソッド
-        (実際に呼び出されるメソッド)
-
-        Returns:
-            pd.DataFrame: 位置情報を含むデータフレーム
-        """
-
-        # 位置情報のカラムが存在することを確認
-        assert set(["location_x", "location_y", "location_z"]).issubset(df.columns)
-
-        return self._to_position_df(df)
-
     @final
     def _parse_data(self, data: list[str]) -> DataType:
         """
@@ -103,9 +72,9 @@ class LocalizerBase(Generic[DataType]):
             self.logger.error(msg)
             raise ValueError(msg)
 
-        data_dict: DataType = {}
+        data_dict: dict[str, Any] = {}
         for (column, converter), value in zip(self.columns.items(), data):
             converted_value = converter(value)
             data_dict[column] = converted_value
 
-        return data_dict
+        return cast(DataType, data_dict)

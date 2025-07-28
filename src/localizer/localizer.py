@@ -1,13 +1,13 @@
 from logging import Logger
 from type import SensorType
-from acc import AccLocalizer
-from ahrs import AhrsLocalizer
-from gpos import GposLocalizer
-from gyro import GyroLocalizer
-from magn import MagnLocalizer
-from uwbp import UwbPLocalizer
-from uwbt import UwbTLokalizer
-from viso import VisoLocalizer
+from .acc import AccLocalizer
+from .ahrs import AhrsLocalizer
+from .gpos import GposLocalizer
+from .gyro import GyroLocalizer
+from .magn import MagnLocalizer
+from .uwbp import UwbPLocalizer
+from .uwbt import UwbTLocalizer
+from .viso import VisoLocalizer
 
 
 class Localizer:
@@ -28,7 +28,7 @@ class Localizer:
         self.magn_localizer = MagnLocalizer(self.trial_id, self.logger)
         self.ahrs_localizer = AhrsLocalizer(self.trial_id, self.logger)
         self.uwbp_localizer = UwbPLocalizer(self.trial_id, self.logger)
-        self.uwbt_localizer = UwbTLokalizer(self.trial_id, self.logger)
+        self.uwbt_localizer = UwbTLocalizer(self.trial_id, self.logger)
         self.gpos_localizer = GposLocalizer(self.trial_id, self.logger)
         self.viso_localizer = VisoLocalizer(self.trial_id, self.logger)
 
