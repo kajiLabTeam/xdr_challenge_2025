@@ -17,7 +17,7 @@ class Requester:
               - `test` 実際のログファイルデータを使っており、より実践的なテストができる
             logger (Logger): ロガーインスタンス
         """
-        self.server_url = urljoin(server, trial_id)
+        self.server_url = urljoin(server, f"{trial_id}/")
         self.logger = logger
 
     def send_reload_req(self, keeplog: bool = False) -> TrialState | None:
@@ -51,7 +51,7 @@ class Requester:
             )
             return None
 
-        self.logger.error(f"{res.status_code}: リロードに失敗しました")
+        self.logger.error(f"{res.status_code}: リロードに失敗しました。({res.text})")
         return None
 
     def send_state_req(self) -> TrialState | None:
@@ -77,7 +77,7 @@ class Requester:
             self.logger.error("不正なパラメータがリクエストに含まれています")
             return None
 
-        self.logger.error(f"{res.status_code}: 状態取得に失敗しました")
+        self.logger.error(f"{res.status_code}: 状態取得に失敗しました。({res.text})")
         return None
 
     def send_nextdata_req(
@@ -129,7 +129,7 @@ class Requester:
             self.logger.error("クライアントがAPIを呼び出す頻度が速すぎます")
             return None
 
-        self.logger.error(f"{res.status_code}: センサーデータ取得に失敗しました")
+        self.logger.error(f"{res.status_code}: センサーデータ取得に失敗しました。({res.text})")
         return None
 
     def _format_state(self, text: str) -> TrialState | None:
@@ -170,7 +170,7 @@ class Requester:
         Returns:
             Position: 位置情報を表す Position オブジェクト
         """
-        pos = pos_str.split(",")
+        pos = pos_str.split(";")
         return Position(
             x=float(pos[0]),
             y=float(pos[1]),
@@ -183,6 +183,6 @@ class Requester:
         """
         request_path = urljoin(self.server_url, path)
         res = requests.get(str(request_path), **kwargs)
-        self.logger.debug(f"GET {request_path} {kwargs} -> {res.status_code}")
+        self.logger.debug(f"GET {str(request_path)} {kwargs} -> {res.status_code}")
 
         return res

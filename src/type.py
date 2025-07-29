@@ -60,6 +60,15 @@ class TrialState:
         self.pts = pts
         self.pos = pos
 
+    def __str__(self):
+        """
+        トライアルの状態を文字列に変換するメソッド
+
+        Returns:
+            str: トライアルの状態を表す文字列
+        """
+        return f"trialts={self.trialts}, rem={self.rem}, V={self.V}, S={self.S}, p={self.p}, h={self.h}, pts={self.pts}, pos={self.pos.to_str()}"
+
 
 class EnvVars(TypedDict):
     """

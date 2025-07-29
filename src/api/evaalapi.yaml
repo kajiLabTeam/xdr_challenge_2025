@@ -1,9 +1,79 @@
-# This trial is used by the demo
+demo:
+  datafile: T03_02.txt
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 10.422057;43.718278;1
+  reloadable: True
+
+# These two trials are used by the demo
 onlinedemo:
-    datafile: 1.txt
-    commsep: '%'
-    sepch: ';'
-    V: 3
-    S: 15
-    inipos: 0,0,1
-    reloadable: True
+  datafile: T03_02.txt
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 10.422057;43.718278;1
+  reloadable: True
+
+offlinedemo:
+  datafile: T03_02.txt
+  commsep: "%"
+  sepch: ";"
+  V: 0
+  S: 50
+  inipos: 10.422057;43.718278;1
+  offline: True
+  reloadable: True
+
+# These trials are used by the test suite
+missingcsv:
+  datafile: missing.csv
+  commsep: "%"
+  sepch: ","
+  V: 4
+  S: 17
+  inipos: 11,21,1
+  reloadable: True
+
+nonrel:
+  datafile: test.csv
+  commsep: "%"
+  sepch: ","
+  V: 1
+  S: 2
+  inipos: 10.422057,43.718278,1
+  reloadable: False
+
+nrdemo:
+  datafile: T03_02.txt
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 10.422057;43.718278;1
+  reloadable: False
+
+offtest:
+  datafile: test.csv
+  commsep: "%"
+  sepch: ","
+  V: 0
+  S: 2
+  inipos: 10.422057,43.718278,1
+  offline: True
+  reloadable: True
+
+nrofftest:
+  datafile: test.csv
+  commsep: "%"
+  sepch: ","
+  V: 0
+  S: 2
+  inipos: 10.422057,43.718278,1
+  offline: True
+  reloadable: False
+# Local Variables:
+# mode: conf-colon
+# End:

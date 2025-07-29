@@ -22,14 +22,18 @@ from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 from markupsafe import escape
 from flask import Flask, abort, request, Request, Response, send_file
+from pathlib import Path
 
+
+script_path = Path(__file__).resolve()
+script_dir = script_path.parent
 
 revision = "$Revision: 3.10.3.8 $"[11:-2]
 source = "evaalapi.py"
 sourcedir = "source/"
-trialsdir = "trials/"
-globinifn = "evaalapi.yaml"
-privatefn = "private.yaml"
+trialsdir = (script_dir / "trials/").resolve()
+globinifn = (script_dir / "evaalapi.yaml").resolve()
+privatefn = (script_dir / "private.yaml").resolve()
 starttime =  datetime.now(timezone.utc).strftime("%FT%H:%M:%SZ")
 guisource = "evaalapigui.py"
 
@@ -260,7 +264,7 @@ def get_trial (trialname):
             if debug: conforigin = "internal test"
             initrials = test_trials
         else:
-            trialinifn = trialsdir + trialname + ".yaml"
+            trialinifn = (trialsdir / trialname).with_suffix('.yaml')
             try:
                 ## Look for a configuration file named after the trial name
                 if os.path.exists(trialinifn):
@@ -290,8 +294,8 @@ def get_trial (trialname):
             ## Create trial
             trials[name] = {'name': name,
                             'addr': set(), # remote addresses accessing this trial
-                            'logfn': trialsdir + name + ".log.xz",
-                            'estfn': trialsdir + name + ".est",
+                            'logfn': (trialsdir / name).with_suffix(".log.xz"),
+                            'estfn': (trialsdir / name).with_suffix(".est"),
                             'state': 'nonstarted'}
             # if debug: print(f"Trial {name}: {initrial}")
             if('offline' not in initrial):
@@ -1314,7 +1318,7 @@ else:
     extrafiles = []
 
 if __name__ == "__main__":
-    app.run(extrafiles)
+    app.run(extrafiles, debug=True)
     
 
 # Local Variables:
