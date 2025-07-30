@@ -30,35 +30,42 @@ def pipeline(
     logger.info(f"初期状態: {initial_state}")
     time.sleep(maxwait)
 
+    ctrl_c_pressed = False
     while True:
-        recv_data = requester.send_nextdata_req(position=localizer[-1])
+        try:
+            recv_data = requester.send_nextdata_req(position=localizer[-1])
 
-        # センサーデータを受信した場合
-        if isinstance(recv_data, SensorData):
-            localizer.clear_last_appended_data()
-            localizer.set_sensor_data(recv_data)
-            localizer.estimate()
-            time.sleep(maxwait)
-            continue
+            # センサーデータを受信した場合
+            if isinstance(recv_data, SensorData):
+                localizer.clear_last_appended_data()
+                localizer.set_sensor_data(recv_data)
+                localizer.estimate()
+                time.sleep(maxwait)
+                continue
 
-        # TrialState を受信した場合(トライアルが終了した場合)
-        if isinstance(recv_data, TrialState):
-            break
+            # TrialState を受信した場合(トライアルが終了した場合)
+            if isinstance(recv_data, TrialState):
+                break
 
-        # データの受信に失敗した場合
-        logger.warning("データの受信に失敗しました。再試行しますか？")
-        is_continue = (
-            input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
-        )
-        if is_continue == "no":
-            break
+            # データの受信に失敗した場合
+            logger.warning("データの受信に失敗しました。再試行しますか？")
+            is_continue = (
+                input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
+            )
+            if is_continue == "no":
+                break
+        except KeyboardInterrupt:
+            if not ctrl_c_pressed:
+                print()
+                logger.info("Ctrl+C が押されました。処理を中断します")
+                break  # ループを抜けて一旦処理を止める
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
 
     # トライアルの状態を取得
-    estimates = requester.send_estimates_req()
-    if estimates is not None:
-        estimates.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+    estimates_df = requester.send_estimates_req()
+    if estimates_df is not None:
+        estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
 
     # 推定結果をマップにプロット
     localizer.plot_map(

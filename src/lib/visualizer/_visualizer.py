@@ -31,6 +31,8 @@ class Visualizer(DataRecorderProtocol):
             show (bool): プロットを表示するかどうか
             save (bool): プロットをファイルに保存するかどうか
         """
+        self.logger.info("推定結果をマップにプロットします")
+
         src_dir = Path().resolve()
         bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
         df = pd.DataFrame(self.positions, columns=["x", "y", "z"])
@@ -56,6 +58,8 @@ class Visualizer(DataRecorderProtocol):
         plt.legend()
 
         if save:
+            self.logger.info(f"プロットを {output_file} に保存します")
             plt.savefig(src_dir / output_file)
         if show:
+            self.logger.info("プロットを表示します")
             plt.show()
