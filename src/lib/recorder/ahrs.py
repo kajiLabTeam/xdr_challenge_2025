@@ -27,5 +27,3 @@ class AhrsDataRecorder(BaseDataRecorder[AhrsData]):
         "quat_4": float,
         "accuracy": float,
     }
-
-    pass

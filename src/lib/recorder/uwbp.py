@@ -23,4 +23,3 @@ class UwbPDataRecorder(BaseDataRecorder[UwbPData]):
         "direction_vec_y": float,
         "direction_vec_z": float,
     }
-    pass

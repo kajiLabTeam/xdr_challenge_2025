@@ -25,4 +25,3 @@ class VisoDataRecorder(BaseDataRecorder[VisoData]):
         "quat_y": float,
         "quat_z": float,
     }
-    pass

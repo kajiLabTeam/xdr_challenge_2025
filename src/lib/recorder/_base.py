@@ -16,7 +16,7 @@ class BaseDataRecorder(Generic[DataType]):
         self.logger = logger
 
     @final
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any):
         """
         サブクラスの初期化時に呼び出されるメソッド
         """

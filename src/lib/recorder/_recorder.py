@@ -1,5 +1,6 @@
 from logging import Logger
 from src.type import SensorData
+from ._position import PositionDataRecorder
 from .acce import AcceDataRecorder
 from .ahrs import AhrsDataRecorder
 from .gpos import GposDataRecorder
@@ -10,7 +11,7 @@ from .uwbt import UwbTDataRecorder
 from .viso import VisoDataRecorder
 
 
-class DataRecorder:
+class DataRecorder(PositionDataRecorder):
     """
     データの記録を行うクラス
     """
@@ -21,6 +22,8 @@ class DataRecorder:
             trial_id (str): トライアルID
             logger (Logger): ロガー
         """
+        super().__init__()
+
         self.trial_id = trial_id
         self.logger = logger
         self.acc_datarecorder = AcceDataRecorder(trial_id, logger)

@@ -1,5 +1,6 @@
 import io
 from logging import Logger
+from typing import Any
 import requests
 from urllib.parse import urljoin
 from src.type import Position, SensorData, TrialState
@@ -85,7 +86,7 @@ class Requester:
 
     def send_nextdata_req(
         self,
-        position: Position,
+        position: Position | None = None,
         online: bool = False,
         horizon: float = 0.5,
     ) -> SensorData | TrialState | None:
@@ -103,18 +104,21 @@ class Requester:
         呼び出す際には、offlineパラメータを必ず付ける必要があります。
         全てのセンサーデータが一括で返されます。
 
+        Args:
+            position (Position | None): クライアントが算出した現在位置。Noneの場合は送信しません。
+            online (bool): オンラインモードであるかどうか。デフォルトはFalse。
+            horizon (float): センサーデータの取得時間範囲。オンラインモードでのみ使用されます。
         Returns:
             list[dict]: サーバーからのレスポンス
             None: リクエストに失敗した場合
         """
-        pos_str = position.to_str()
-        res: requests.Response
+        params: dict = {}
         if online:
-            res = self._get(
-                "nextdata", position=pos_str, online=online, horizon=horizon
-            )
-        else:
-            res = self._get("nextdata", position=pos_str)
+            params["online"] = "true"
+        if position is not None:
+            params["position"] = position.to_str()
+
+        res = self._get("nextdata", **params)
 
         if res.status_code == 200:
             self.logger.info("センサーデータを取得しました")
@@ -129,7 +133,7 @@ class Requester:
         elif res.status_code == 405:
             self.logger.info(f"トライアルが終了しています。({res.text})")
             try:
-                return TrialState(res.text, sep=",")
+                return TrialState(res.text, sep=";")
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None
@@ -172,7 +176,7 @@ class Requester:
         self.logger.error(f"{res.status_code}: 推定値取得に失敗しました。({res.text})")
         return None
 
-    def _get(self, path: str, **kwargs) -> requests.Response:
+    def _get(self, path: str, **kwargs: Any) -> requests.Response:
         """
         サーバーにGETリクエストを送信する
         """

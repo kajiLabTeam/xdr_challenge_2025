@@ -21,4 +21,3 @@ class GyroDataRecorder(BaseDataRecorder[GyroData]):
         "gyr_z": float,
         "accuracy": float,
     }
-    pass

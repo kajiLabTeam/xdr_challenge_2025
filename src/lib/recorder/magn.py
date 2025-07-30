@@ -21,4 +21,3 @@ class MagnDataRecorder(BaseDataRecorder[MagnData]):
         "mag_z": float,
         "accuracy": float,
     }
-    pass

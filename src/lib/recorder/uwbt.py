@@ -23,4 +23,3 @@ class UwbTDataRecorder(BaseDataRecorder[UwbPData]):
         "aoa_elevation": float,
         "nlos": bool,
     }
-    pass

@@ -61,7 +61,7 @@ class TrialState:
         self.pts = state["pts"]
         self.pos = state["pos"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         トライアルの状態を文字列に変換するメソッド
 
