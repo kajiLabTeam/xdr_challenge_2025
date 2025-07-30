@@ -34,7 +34,9 @@ def pipeline(
         # センサーデータを受信した場合
         if isinstance(recv_data, SensorData):
             localizer.set_sensor_data(recv_data)
+            localizer.estimate()
             time.sleep(maxwait)
+            continue
 
         # TrialState を受信した場合(トライアルが終了した場合)
         if isinstance(recv_data, TrialState):
