@@ -1,0 +1,2 @@
+class RequesterError(Exception):
+    pass

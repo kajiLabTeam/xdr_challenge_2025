@@ -1,7 +1,7 @@
 import logging
 import time
 from pathlib import Path
-from src.lib import Localizer, Requester
+from src.lib import Localizer, Requester, RequesterError
 from src.type import SensorData, TrialState
 
 
@@ -30,7 +30,6 @@ def pipeline(
     logger.info(f"初期状態: {initial_state}")
     time.sleep(maxwait)
 
-    ctrl_c_pressed = False
     while True:
         try:
             recv_data = requester.send_nextdata_req(position=localizer[-1])
@@ -48,17 +47,24 @@ def pipeline(
                 break
 
             # データの受信に失敗した場合
-            logger.warning("データの受信に失敗しました。再試行しますか？")
+            raise RequesterError("データの受信に失敗しました")
+
+        except KeyboardInterrupt:
+            print()
+            logger.info("Ctrl+C が押されました。処理を中断します")
+            break
+        except Exception as e:
+            if isinstance(e, RequesterError):
+                logger.warning("データの受信に失敗しました。再試行しますか？")
+            else:
+                logger.error(f"予期しないエラーが発生しました。 {e}")
+
             is_continue = (
                 input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
             )
             if is_continue == "no":
+                logger.error("予期しないエラー", e)
                 break
-        except KeyboardInterrupt:
-            if not ctrl_c_pressed:
-                print()
-                logger.info("Ctrl+C が押されました。処理を中断します")
-                break  # ループを抜けて一旦処理を止める
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
 
