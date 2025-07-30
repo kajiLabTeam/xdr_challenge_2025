@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -27,7 +28,7 @@ class Visualizer(DataRecorderProtocol):
         """
         src_dir = Path().resolve()
         bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
-        df = self.positions.to_frame()
+        df = pd.DataFrame(self.positions, columns=["x", "y", "z"])
 
         height, width = bitmap_array.shape[:2]
         width_m = width / map_ppm

@@ -1,5 +1,4 @@
 from typing import Generic, Iterator, TypeVar
-import pandas as pd
 
 T = TypeVar("T")
 
@@ -40,9 +39,3 @@ class SafeList(Generic[T]):
 
     def to_list(self) -> list[T]:
         return self._data.copy()
-
-    def to_frame(self) -> pd.DataFrame:
-        """
-        推定結果を取得する
-        """
-        return pd.DataFrame(self._data)
