@@ -155,6 +155,7 @@ class Requester:
         """
         res = self._get("estimates")
         if res.status_code == 200:
+            self.logger.info("推定結果を取得しました")
             res_text = res.text.replace(";", ",")
             df = pd.read_csv(
                 io.StringIO(res_text),
