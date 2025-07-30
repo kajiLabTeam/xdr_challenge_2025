@@ -1,4 +1,5 @@
 from logging import Logger
+from typing import final
 from src.type import SensorData
 from ._position import PositionDataRecorder
 from .acce import AcceDataRecorder
@@ -35,6 +36,7 @@ class DataRecorder(PositionDataRecorder):
         self.gpos_datarecorder = GposDataRecorder(trial_id, logger)
         self.viso_datarecorder = VisoDataRecorder(trial_id, logger)
 
+    @final
     def set_sensor_data(self, sensor_data: SensorData) -> None:
         """
         センサーデータを保存するメソッド
@@ -63,3 +65,18 @@ class DataRecorder(PositionDataRecorder):
                 self.viso_datarecorder.append(sensor_type, data)
             else:
                 self.logger.error(f"Unknown sensor type: {sensor_type}")
+
+    @final
+    def clear_last_appended_data(self) -> None:
+        """
+        最後に追加されたデータをクリアする
+        last_appended_data が空になり、再度 append すると新しいデータが追加されます
+        """
+        self.acc_datarecorder.clear_last_appended_data()
+        self.gyro_datarecorder.clear_last_appended_data()
+        self.magn_datarecorder.clear_last_appended_data()
+        self.ahrs_datarecorder.clear_last_appended_data()
+        self.uwbp_datarecorder.clear_last_appended_data()
+        self.uwbt_datarecorder.clear_last_appended_data()
+        self.gpos_datarecorder.clear_last_appended_data()
+        self.viso_datarecorder.clear_last_appended_data()

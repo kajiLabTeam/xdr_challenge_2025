@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 import time
 from src.lib import Localizer, Requester
-from src.type import Position, SensorData, TrialState
+from src.type import SensorData, TrialState
 
 
 def pipeline(
@@ -33,6 +33,7 @@ def pipeline(
 
         # センサーデータを受信した場合
         if isinstance(recv_data, SensorData):
+            localizer.clear_last_appended_data()
             localizer.set_sensor_data(recv_data)
             localizer.estimate()
             time.sleep(maxwait)

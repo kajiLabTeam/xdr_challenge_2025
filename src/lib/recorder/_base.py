@@ -8,7 +8,8 @@ DataType = TypeVar("DataType")
 class BaseDataRecorder(Generic[DataType]):
     key: str
     columns: dict[str, Type[str | float | bool]]
-    data: list[DataType] = []
+    __data: list[DataType] = []
+    __last_appended_data: list[DataType] = []
 
     @final
     def __init__(self, trial_id: str, logger: logging.Logger):
@@ -34,6 +35,22 @@ class BaseDataRecorder(Generic[DataType]):
             cls.logger.error(msg)
             raise ValueError(msg)
 
+    @property
+    def data(self) -> tuple[DataType, ...]:
+        """
+        センサーデータ
+        直接アクセスすることはできません
+        """
+        return tuple(self.__data)
+
+    @property
+    def last_appended_data(self) -> list[DataType]:
+        """
+        最後に追加されたセンサーデータ
+        直接アクセスすることはできません
+        """
+        return self.__last_appended_data
+
     @final
     def append(self, sensor_type: SensorType, data: list[str]) -> None:
         """
@@ -52,7 +69,19 @@ class BaseDataRecorder(Generic[DataType]):
             raise ValueError(msg)
 
         self.logger.debug(f"[{self.key}] データを追加します: {data}")
-        self.data.append(self._parse_data(data))
+
+        parsed = self._parse_data(data)
+        self.__data.append(parsed)
+        self.__last_appended_data.append(parsed)
+
+    @final
+    def clear_last_appended_data(self) -> None:
+        """
+        最後に追加されたデータをクリアする
+        last_appended_data が空になり、再度 append すると新しいデータが追加されます
+        """
+        self.logger.debug(f"[{self.key}] の最後に追加されたデータをクリアします")
+        self.__last_appended_data.clear()
 
     @final
     def _parse_data(self, data: list[str]) -> DataType:
