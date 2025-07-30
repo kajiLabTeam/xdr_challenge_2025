@@ -3,4 +3,7 @@
     "explorer.fileNesting.patterns": {
         ".env.example": ".env*",
     },
+    "files.exclude": {
+        "**/__pycache__": true
+    }
 }

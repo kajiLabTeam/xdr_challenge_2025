@@ -1,5 +1,5 @@
 from typing import TypedDict
-from src.localizer.base import LocalizerBase
+from ._base import BaseDataRecorder
 
 
 class UwbPData(TypedDict):
@@ -7,20 +7,20 @@ class UwbPData(TypedDict):
     sensor_timestamp: float
     tag_id: str
     distance: float
-    direction_vec_x: float
-    direction_vec_y: float
-    direction_vec_z: float
+    aoa_azimuth: float
+    aoa_elevation: float
+    nlos: bool
 
 
-class UwbPLocalizer(LocalizerBase[UwbPData]):
-    key = "UWBP"
+class UwbTDataRecorder(BaseDataRecorder[UwbPData]):
+    key = "UWBT"
     columns = {
         "app_timestamp": float,
         "sensor_timestamp": float,
         "tag_id": str,
         "distance": float,
-        "direction_vec_x": float,
-        "direction_vec_y": float,
-        "direction_vec_z": float,
+        "aoa_azimuth": float,
+        "aoa_elevation": float,
+        "nlos": bool,
     }
     pass

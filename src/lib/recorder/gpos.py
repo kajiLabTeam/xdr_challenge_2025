@@ -1,7 +1,7 @@
 from typing import TypedDict, final
 
 import pandas as pd
-from src.localizer.base import LocalizerBase
+from ._base import BaseDataRecorder
 
 
 class GposData(TypedDict):
@@ -16,7 +16,7 @@ class GposData(TypedDict):
     quat_z: float
 
 
-class GposLocalizer(LocalizerBase[GposData]):
+class GposDataRecorder(BaseDataRecorder[GposData]):
     key = "GPOS"
     columns = {
         "app_timestamp": float,

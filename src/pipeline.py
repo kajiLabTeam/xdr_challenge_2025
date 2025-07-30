@@ -1,9 +1,7 @@
 import logging
 from pathlib import Path
 import time
-from src.api.evaalapi import app
-from src.localizer.localizer import Localizer
-from src.lib.requester import Requester
+from src.lib import Localizer, Requester
 from src.type import Position, TrialState
 
 

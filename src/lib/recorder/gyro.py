@@ -1,5 +1,5 @@
 from typing import TypedDict
-from src.localizer.base import LocalizerBase
+from ._base import BaseDataRecorder
 
 
 class GyroData(TypedDict):
@@ -11,7 +11,7 @@ class GyroData(TypedDict):
     accuracy: float
 
 
-class GyroLocalizer(LocalizerBase[GyroData]):
+class GyroDataRecorder(BaseDataRecorder[GyroData]):
     key = "GYRO"
     columns = {
         "app_timestamp": float,

@@ -1,5 +1,5 @@
 from typing import TypedDict
-from src.localizer.base import LocalizerBase
+from ._base import BaseDataRecorder
 
 
 class VisoData(TypedDict):
@@ -13,7 +13,7 @@ class VisoData(TypedDict):
     quat_z: float
 
 
-class VisoLocalizer(LocalizerBase[VisoData]):
+class VisoDataRecorder(BaseDataRecorder[VisoData]):
     key = "VISO"
     columns = {
         "app_timestamp": float,

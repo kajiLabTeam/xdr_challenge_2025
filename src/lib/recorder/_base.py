@@ -1,12 +1,11 @@
-from abc import abstractmethod
 from typing import Any, Generic, Type, TypeVar, cast, final
-from ..type import SensorType
+from src.type import SensorType
 import logging
 
 DataType = TypeVar("DataType")
 
 
-class LocalizerBase(Generic[DataType]):
+class BaseDataRecorder(Generic[DataType]):
     key: str
     columns: dict[str, Type[str | float | bool]]
     data: list[DataType] = []

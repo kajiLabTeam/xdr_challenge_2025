@@ -1,5 +1,5 @@
 from typing import TypedDict
-from src.localizer.base import LocalizerBase
+from ._base import BaseDataRecorder
 
 
 class MagnData(TypedDict):
@@ -11,7 +11,7 @@ class MagnData(TypedDict):
     accuracy: float
 
 
-class MagnLocalizer(LocalizerBase[MagnData]):
+class MagnDataRecorder(BaseDataRecorder[MagnData]):
     key = "MAGN"
     columns = {
         "app_timestamp": float,

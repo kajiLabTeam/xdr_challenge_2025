@@ -1,5 +1,5 @@
 from typing import TypedDict
-from src.localizer.base import LocalizerBase
+from src.lib.recorder._base import BaseDataRecorder
 
 
 class AcceData(TypedDict):
@@ -11,7 +11,7 @@ class AcceData(TypedDict):
     accuracy: float
 
 
-class AcceLocalizer(LocalizerBase[AcceData]):
+class AcceDataRecorder(BaseDataRecorder[AcceData]):
     key = "ACCE"
     columns = {
         "app_timestamp": float,

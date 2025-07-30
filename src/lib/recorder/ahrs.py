@@ -1,5 +1,5 @@
 from typing import TypedDict
-from src.localizer.base import LocalizerBase
+from ._base import BaseDataRecorder
 
 
 class AhrsData(TypedDict):
@@ -14,7 +14,7 @@ class AhrsData(TypedDict):
     accuracy: float
 
 
-class AhrsLocalizer(LocalizerBase[AhrsData]):
+class AhrsDataRecorder(BaseDataRecorder[AhrsData]):
     key = "AHRS"
     columns = {
         "app_timestamp": float,
