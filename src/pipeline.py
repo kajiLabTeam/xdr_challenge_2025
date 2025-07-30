@@ -33,9 +33,11 @@ def pipeline(
 
         if recv_data is None:
             logger.warning("データの受信に失敗しました。再試行しますか？")
-            is_continue = input("再試行しますか？ (y/n): ").strip().lower()
+            is_continue = (
+                input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
+            )
 
-            if is_continue == "n":
+            if is_continue == "no":
                 logger.info("パイプラインを終了します。")
                 break
 
