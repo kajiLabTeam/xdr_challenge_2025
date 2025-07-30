@@ -35,7 +35,7 @@ class Requester:
         if res.status_code == 200:
             self.logger.info("リロードしました")
             try:
-                return TrialState(res.text, sep=";")
+                return TrialState(res.text)
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None
@@ -133,7 +133,7 @@ class Requester:
         elif res.status_code == 405:
             self.logger.info(f"トライアルが終了しています。({res.text})")
             try:
-                return TrialState(res.text, sep=";")
+                return TrialState(res.text)
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None

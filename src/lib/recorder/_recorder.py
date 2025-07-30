@@ -12,7 +12,7 @@ from .uwbt import UwbTDataRecorder
 from .viso import VisoDataRecorder
 
 
-class DataRecorderProtocol(Protocol, PositionDataRecorderProtocol):
+class DataRecorderProtocol(PositionDataRecorderProtocol):
     trial_id: str
     logger: Logger
     acc_datarecorder: AcceDataRecorder

@@ -1,5 +1,6 @@
 from typing import Iterator, Literal, NamedTuple, TypedDict, cast
 from parse import parse
+import re
 
 SensorType = Literal["ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"]
 ALLOWED_SENSOR_TYPES = {"ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"}
@@ -22,6 +23,12 @@ class Position(NamedTuple):
             str: 位置を表す文字列
         """
         return f"{self.x},{self.y},{self.z}"
+
+    def __repr__(self) -> str:
+        return f"({self.x},{self.y},{self.z})"
+
+    def __str__(self) -> str:
+        return f"({self.x},{self.y},{self.z})"
 
 
 class _TrialState(TypedDict):
@@ -49,9 +56,8 @@ class TrialState:
     def __init__(
         self,
         text: str,
-        sep: Literal[";"] | Literal[","] = ";",
     ):
-        state = self._parse_state(text, sep)
+        state = self._parse_state(text)
         self.trialts = state["trialts"]
         self.rem = state["rem"]
         self.V = state["V"]
@@ -70,9 +76,7 @@ class TrialState:
         """
         return f"trialts={self.trialts}, rem={self.rem}, V={self.V}, S={self.S}, p={self.p}, h={self.h}, pts={self.pts}, pos={self.pos.to_str()}"
 
-    def _parse_state(
-        self, text: str, sep: Literal[";"] | Literal[","] = ";"
-    ) -> _TrialState:
+    def _parse_state(self, text: str) -> _TrialState:
         """
         トライアルの状態を文字列から TrialState オブジェクトに変換
         Args:
@@ -92,7 +96,7 @@ class TrialState:
         p = values["p"]
         h = values["h"]
         pts = values["pts"]
-        pos = self._parse_position(values["pos"].split(sep))
+        pos = self._parse_position(re.split(r"[;,]", values["pos"]))
 
         if pos is None:
             raise ValueError("位置情報のフォーマットが不正です")

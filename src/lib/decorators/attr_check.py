@@ -1,4 +1,4 @@
-from typing import Any, Callable, TypeVar, cast, TYPE_CHECKING
+from typing import Any, Callable, Sized, TypeVar, cast, TYPE_CHECKING
 from functools import wraps
 
 if TYPE_CHECKING:
@@ -25,9 +25,10 @@ def require_attr_appended(
                 setattr(self, f"_prev_len_{attr_name}", 0)
 
             current_value = getattr(self, attr_name, None)
-            if not isinstance(current_value, (list, set, dict)):
+
+            if not isinstance(current_value, Sized):
                 raise TypeError(
-                    f"{attr_name} は list / set / dict である必要があります。"
+                    f"{attr_name} は Sized である必要があります。現在の型: {type(current_value)}"
                 )
 
             current_len = len(current_value)

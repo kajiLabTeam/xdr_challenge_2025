@@ -1,6 +1,6 @@
 import logging
-from pathlib import Path
 import time
+from pathlib import Path
 from src.lib import Localizer, Requester
 from src.type import SensorData, TrialState
 
@@ -11,6 +11,8 @@ def pipeline(
     maxwait: float,
     evaal_api_server: str,
     output_dir: Path,
+    show_plot_map: bool,
+    no_save_plot_map: bool,
 ) -> None:
     """
     実行手順の定義
@@ -51,7 +53,17 @@ def pipeline(
         if is_continue == "no":
             break
 
+    datetime = time.strftime("%Y%m%d_%H%M%S")
+
+    # トライアルの状態を取得
     estimates = requester.send_estimates_req()
     if estimates is not None:
-        datetime = time.strftime("%Y%m%d_%H%M%S")
         estimates.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+
+    # 推定結果をマップにプロット
+    localizer.plot_map(
+        "map/miraikan_5.bmp",
+        output_dir / f"{trial_id}_{datetime}_map.png",
+        show=show_plot_map,
+        save=not no_save_plot_map,
+    )

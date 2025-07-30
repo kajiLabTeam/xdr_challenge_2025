@@ -16,9 +16,7 @@ logger = colorlog.getLogger()
 
 
 @click.command()
-@click.option(
-    "-d", "--demo", is_flag=True, default=False, help="DEMOモード (default: False)"
-)
+@click.option("-d", "--demo", is_flag=True, help="DEMOモード (default: False)")
 @click.option("-w", "--maxwait", default=0.5, help="最大待機時間 (default: 0.5秒)")
 @click.option(
     "-l",
@@ -31,8 +29,7 @@ logger = colorlog.getLogger()
     "-r",
     "--run-server",
     is_flag=True,
-    default=False,
-    help="EvAAL APIサーバーを立ち上げるか (default: False)",
+    help="EvAAL APIサーバーを立ち上げる (default: False)",
 )
 @click.option(
     "-o",
@@ -40,7 +37,27 @@ logger = colorlog.getLogger()
     default="output",
     help="出力ディレクトリ (default: output)",
 )
-def main(demo: bool, maxwait: float, run_server: bool, output_dir: str, loglevel: str):
+@click.option(
+    "-s",
+    "--show-plot-map",
+    is_flag=True,
+    help="推定結果をマップに表示する (default: False)",
+)
+@click.option(
+    "-ns",
+    "--no-save-plot-map",
+    is_flag=True,
+    help="推定結果をマップに保存しない (default: False)",
+)
+def main(
+    demo: bool,
+    maxwait: float,
+    run_server: bool,
+    output_dir: str,
+    loglevel: str,
+    show_plot_map: bool,
+    no_save_plot_map: bool,
+) -> None:
     output_dir_path = init_dir(output_dir)
     init_logging(loglevel)
 
@@ -62,12 +79,20 @@ def main(demo: bool, maxwait: float, run_server: bool, output_dir: str, loglevel
         server_thread.start()
         time.sleep(2)  # サーバー起動待ち
 
-    pipeline(logger, trial, maxwait, evaal_api_server, output_dir_path)
+    pipeline(
+        logger,
+        trial,
+        maxwait,
+        evaal_api_server,
+        output_dir_path,
+        show_plot_map,
+        no_save_plot_map,
+    )
 
     logger.info("終了します")
 
 
-def run_evaal_api_server(logger: logging.Logger):
+def run_evaal_api_server(logger: logging.Logger) -> None:
     """
     EvAAL API サーバーを起動する
     """
@@ -129,9 +154,10 @@ def init_dir(output_dir: str) -> Path:
     return output_dir_path
 
 
-def init_logging(loglevel: str):
-    """ロギングの初期化"""
-    # handler を作成して formatter に色設定を追加
+def init_logging(loglevel: str) -> None:
+    """
+    ロギングの初期化
+    """
     handler = colorlog.StreamHandler()
     handler.setFormatter(
         colorlog.ColoredFormatter(
