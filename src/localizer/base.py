@@ -9,7 +9,7 @@ DataType = TypeVar("DataType")
 class LocalizerBase(Generic[DataType]):
     key: str
     columns: dict[str, Type[str | float | bool]]
-    data: list[DataType]
+    data: list[DataType] = []
 
     @final
     def __init__(self, trial_id: str, logger: logging.Logger):
@@ -52,6 +52,7 @@ class LocalizerBase(Generic[DataType]):
             self.logger.error(msg)
             raise ValueError(msg)
 
+        self.logger.debug(f"[{self.key}] データを追加します: {data}")
         self.data.append(self._parse_data(data))
 
     @final

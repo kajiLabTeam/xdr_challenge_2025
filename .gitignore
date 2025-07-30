@@ -206,6 +206,8 @@ __marimo__/
 
 .DS_Store
 
-src/api/trials/*.txt
-!src/api/trials/1.txt
+src/api/trials/*
+!src/api/trials/*.txt
 !src/lib
+
+output/

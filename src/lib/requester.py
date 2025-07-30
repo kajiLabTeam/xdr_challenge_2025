@@ -1,10 +1,9 @@
+import io
 from logging import Logger
 import requests
 from urllib.parse import urljoin
-from parse import parse
-from src.type import Position, TrialState
-
-statefmt = "{trialts:.3f},{rem:.3f},{V:.3f},{S:.3f},{p:.3f},{h:.3f},{pts:.3f},{pos}"
+from src.type import Position, SensorData, TrialState
+import pandas as pd
 
 
 class Requester:
@@ -35,7 +34,7 @@ class Requester:
         if res.status_code == 200:
             self.logger.info("リロードしました")
             try:
-                return self._format_state(res.text)
+                return TrialState(res.text, sep=";")
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None
@@ -66,7 +65,11 @@ class Requester:
         """
         res = self._get("state")
         if res.status_code == 200:
-            return self._format_state(res.text)
+            try:
+                return TrialState(res.text)
+            except ValueError as e:
+                self.logger.error(f"状態を取得できませんでした: {e}")
+                return None
         elif res.status_code == 404:
             self.logger.error("トライアルが見つかりません")
             return None
@@ -85,7 +88,7 @@ class Requester:
         position: Position,
         online: bool = False,
         horizon: float = 0.5,
-    ):
+    ) -> SensorData | TrialState | None:
         """
         センサーデータを取得し、同時にクライアントが算出した位置情報をサーバーに提出する。
 
@@ -111,17 +114,25 @@ class Requester:
                 "nextdata", position=pos_str, online=online, horizon=horizon
             )
         else:
-            res = self._get("nextdata", position=pos_str, offline=True)
+            res = self._get("nextdata", position=pos_str)
 
         if res.status_code == 200:
             self.logger.info("センサーデータを取得しました")
-            return res
+            try:
+                return SensorData(res.text)
+            except ValueError as e:
+                self.logger.error(f"センサーデータの解析に失敗しました: {e}")
+                return None
         elif res.status_code == 404:
             self.logger.error("トライアルが見つかりません")
             return None
         elif res.status_code == 405:
-            self.logger.error("トライアルが既に終了しています")
-            return None
+            self.logger.info(f"トライアルが終了しています。({res.text})")
+            try:
+                return TrialState(res.text, sep=",")
+            except ValueError as e:
+                self.logger.error(f"状態を取得できませんでした: {e}")
+                return None
         elif res.status_code == 422:
             self.logger.error("リクエストに含まれるパラメータが無効です")
             return None
@@ -129,60 +140,43 @@ class Requester:
             self.logger.error("クライアントがAPIを呼び出す頻度が速すぎます")
             return None
 
-        self.logger.error(f"{res.status_code}: センサーデータ取得に失敗しました。({res.text})")
+        self.logger.error(
+            f"{res.status_code}: センサーデータ取得に失敗しました。({res.text})"
+        )
         return None
 
-    def _format_state(self, text: str) -> TrialState | None:
+    def send_estimates_req(self) -> pd.DataFrame | None:
         """
-        トライアルの状態を文字列から TrialState オブジェクトに変換
-        Args:
-            text (str): カンマ区切りの文字列
-        Returns:
-            TrialState: トライアルの状態を表す TrialState オブジェクト
+        位置情報の推定値リストをCSV形式で取得する
         """
-        values = parse(statefmt, text)
+        res = self._get("estimates")
+        if res.status_code == 200:
+            res_text = res.text.replace(";", ",")
+            df = pd.read_csv(
+                io.StringIO(res_text),
+                header=0,
+                names=["pts", "c", "h", "s", "x", "y", "z"],
+            )
+            return df
 
-        if values is None:
+        elif res.status_code == 404:
+            self.logger.error("トライアルが見つかりません")
+            return None
+        elif res.status_code == 405:
+            self.logger.error("試行がまだ開始されていないため、推定値がありません")
+            return None
+        elif res.status_code == 422:
+            self.logger.error("不正なパラメータがリクエストに含まれています")
             return None
 
-        trialts = values["trialts"]
-        rem = values["rem"]
-        V = values["V"]
-        S = values["S"]
-        p = values["p"]
-        h = values["h"]
-        pts = values["pts"]
-        pos = self._format_position(values["pos"])
-
-        if pos is None:
-            self.logger.error("位置情報のフォーマットが不正です")
-            return None
-
-        return TrialState(
-            trialts=trialts, rem=rem, V=V, S=S, p=p, h=h, pts=pts, pos=pos
-        )
-
-    def _format_position(self, pos_str: str) -> Position | None:
-        """
-        位置情報を文字列から Position オブジェクトに変換
-        Args:
-            position (str): カンマ区切りの位置情報文字列
-        Returns:
-            Position: 位置情報を表す Position オブジェクト
-        """
-        pos = pos_str.split(";")
-        return Position(
-            x=float(pos[0]),
-            y=float(pos[1]),
-            z=float(pos[2]),
-        )
+        self.logger.error(f"{res.status_code}: 推定値取得に失敗しました。({res.text})")
+        return None
 
     def _get(self, path: str, **kwargs) -> requests.Response:
         """
         サーバーにGETリクエストを送信する
         """
         request_path = urljoin(self.server_url, path)
-        res = requests.get(str(request_path), **kwargs)
-        self.logger.debug(f"GET {str(request_path)} {kwargs} -> {res.status_code}")
+        res = requests.get(str(request_path), params=kwargs)
 
         return res

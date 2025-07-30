@@ -2,7 +2,7 @@ from typing import TypedDict
 from src.localizer.base import LocalizerBase
 
 
-class AccData(TypedDict):
+class AcceData(TypedDict):
     app_timestamp: float
     sensor_timestamp: float
     acc_x: float
@@ -11,8 +11,8 @@ class AccData(TypedDict):
     accuracy: float
 
 
-class AccLocalizer(LocalizerBase[AccData]):
-    key = "ACC"
+class AcceLocalizer(LocalizerBase[AcceData]):
+    key = "ACCE"
     columns = {
         "app_timestamp": float,
         "sensor_timestamp": float,

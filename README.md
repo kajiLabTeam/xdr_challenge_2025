@@ -36,3 +36,17 @@ python main.py --demo
 ```bash
 python main.py
 ```
+
+### オプション
+| オプション     | 省略形 | デフォルト値 | 説明                                                                               |
+| -------------- | ------ | ------------ | ---------------------------------------------------------------------------------- |
+| `--demo`       | `-d`   | `False`      | デモ環境で実行します。環境変数は `.env.demo` を使用します。                        |
+| `--maxwait`    | `-w`   | `0.5`        | nextdata 取得・送信時の間隔。単位は秒                                              |
+| `--loglevel`   | `-l`   | `info`       | ログの出力レベル。`debug`, `info`, `warning`, `error`, `critical` から選択します。 |
+| `--run-server` | `-r`   | `False`      | ローカルの EvAAL API サーバーを起動します。本番環境では使用できません。            |
+| `--output-dir` | `-o`   | `output`     | 出力ディレクトリ。                                                                 |
+
+### 例
+```bash
+python main.py -w 0.5 -l debug -r --demo
+```

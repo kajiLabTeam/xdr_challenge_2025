@@ -847,7 +847,7 @@ def trial_nextdata (trialname):
         if debug: print(f"State is {state}")
         
         # Open data file
-        datafn = trialsdir + trial['datafile']
+        datafn = trialsdir / trial['datafile']
         linets = None
         try:
             dataf = open(datafn, 'r')
@@ -1079,7 +1079,7 @@ def trial_estimates (trialname):
     data = "\n".join(trial['est'])      # estimates separated by newlines
     estfn = trial['estfn']
     return data, {"Content-Type": "text/csv",
-                  "Content-Disposition": "attachment; filename=" + estfn}
+                  "Content-Disposition": f"attachment; filename={estfn}"}
 
 
 ################################################################

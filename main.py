@@ -1,20 +1,32 @@
+from datetime import datetime
 from threading import Thread
+import time
 from typing import cast
 import click
 import logging
 import colorlog
 import os
 from dotenv import load_dotenv
-from src.pipeline import competition_pipeline, demo_pipeline
+from src.pipeline import pipeline
 from src.type import EnvVars
 from src.api.evaalapi import app
+from pathlib import Path
 
 logger = colorlog.getLogger()
 
 
 @click.command()
-@click.option("-d", "--demo", is_flag=True, help="DEMOモード (default: False)")
+@click.option(
+    "-d", "--demo", is_flag=True, default=False, help="DEMOモード (default: False)"
+)
 @click.option("-w", "--maxwait", default=0.5, help="最大待機時間 (default: 0.5秒)")
+@click.option(
+    "-l",
+    "--loglevel",
+    default="info",
+    type=click.Choice(["debug", "info", "warning", "error", "critical"]),
+    help="出力ログレベル (default: info)",
+)
 @click.option(
     "-r",
     "--run-server",
@@ -23,18 +35,22 @@ logger = colorlog.getLogger()
     help="EvAAL APIサーバーを立ち上げるか (default: False)",
 )
 @click.option(
-    "-l",
-    "--loglevel",
-    default="info",
-    type=click.Choice(["debug", "info", "warning", "error", "critical"]),
-    help="出力ログレベル (default: info)",
+    "-o",
+    "--output-dir",
+    default="output",
+    help="出力ディレクトリ (default: output)",
 )
-def main(demo: bool, maxwait: float, run_server: bool, loglevel="info"):
+def main(demo: bool, maxwait: float, run_server: bool, output_dir: str, loglevel: str):
+    output_dir_path = init_dir(output_dir)
     init_logging(loglevel)
-    env_vars = load_env(demo)
 
+    env_vars = load_env(demo)
     if not env_vars:
         logger.error("環境変数の読み込みに失敗しました")
+        return
+
+    ok = check_settings(env_vars, demo, maxwait, run_server, output_dir_path)
+    if not ok:
         return
 
     evaal_api_server = env_vars["EVAAL_API_SERVER"]
@@ -44,13 +60,11 @@ def main(demo: bool, maxwait: float, run_server: bool, loglevel="info"):
         # EvAAL API を起動
         server_thread = Thread(target=run_evaal_api_server, daemon=True, args=(logger,))
         server_thread.start()
+        time.sleep(2)  # サーバー起動待ち
 
-    if demo:
-        demo_pipeline(logger, trial, maxwait, evaal_api_server)
-    else:
-        competition_pipeline(logger, trial, maxwait, evaal_api_server)
+    pipeline(logger, trial, maxwait, evaal_api_server, output_dir_path)
 
-    logger.info("完了しました")
+    logger.info("終了します")
 
 
 def run_evaal_api_server(logger: logging.Logger):
@@ -61,7 +75,61 @@ def run_evaal_api_server(logger: logging.Logger):
     app.run(port=5000)
 
 
-def init_logging(loglevel):
+def check_settings(
+    env_vars: EnvVars, demo: bool, maxwait: float, run_server: bool, output_dir: Path
+) -> bool:
+    """
+    設定(環境変数, オプション)のチェック
+    """
+    if demo:
+        if datetime.now().month >= 9:
+            logger.warning(
+                "デモモードで実行しています。競技中は demo オプションを外してください"
+            )
+    else:
+        if "demo" in env_vars["TRIAL_ID"]:
+            logger.warning(
+                "競技中は demo トライアルを使用しないでください。環境変数 TRIAL_ID を確認してください"
+            )
+
+        if "localhost" in env_vars["EVAAL_API_SERVER"]:
+            logger.warning(
+                "競技中はローカルサーバーを使用しないでください。環境変数 EVAAL_API_SERVER を確認してください"
+            )
+        if "127.0.0.1" in env_vars["EVAAL_API_SERVER"]:
+            logger.warning(
+                "競技中はローカルサーバーを使用しないでください。環境変数 EVAAL_API_SERVER を確認してください"
+            )
+
+        if run_server:
+            logger.error(
+                "本番環境ではローカルの EvAAL API サーバーを使用できません。"
+                + "--run-server(-r) オプションを外してください",
+            )
+            return False
+
+    return True
+
+
+def init_dir(output_dir: str) -> Path:
+    """
+    出力ディレクトリを初期化する
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logger.info(f"出力ディレクトリ '{output_dir}' を作成しました")
+    else:
+        logger.info(f"出力ディレクトリ '{output_dir}' は既に存在します")
+
+    if output_dir.endswith("/"):
+        output_dir_path = Path(output_dir)
+    else:
+        output_dir_path = Path(output_dir + "/")
+
+    return output_dir_path
+
+
+def init_logging(loglevel: str):
     """ロギングの初期化"""
     # handler を作成して formatter に色設定を追加
     handler = colorlog.StreamHandler()

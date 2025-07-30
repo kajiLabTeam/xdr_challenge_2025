@@ -1,48 +1,57 @@
 import logging
-from threading import Thread
+from pathlib import Path
 import time
 from src.api.evaalapi import app
 from src.localizer.localizer import Localizer
-from src.requester import Requester
+from src.lib.requester import Requester
+from src.type import Position, TrialState
 
 
-def demo_pipeline(
-    logger: logging.Logger, trial_id: str, maxwait: float, evaal_api_server: str
+def pipeline(
+    logger: logging.Logger,
+    trial_id: str,
+    maxwait: float,
+    evaal_api_server: str,
+    output_dir: Path,
 ):
     """
-    デモ用のパイプライン
+    実行手順の定義
     """
-    logger.info("デモ用パイプラインを実行します")
+    logger.info("パイプラインを実行します")
 
     # 初期化
     localizer = Localizer(trial_id, logger)
     requester = Requester(evaal_api_server, trial_id, logger)
-
-    time.sleep(2)
+    requester.send_reload_req()
+    time.sleep(maxwait)
 
     # 初期状態を取得
     initial_state = requester.send_state_req()
     logger.info(f"初期状態: {initial_state}")
     time.sleep(maxwait)
 
-    # TODO
+    while True:
+        recv_data = requester.send_nextdata_req(position=Position(x=0, y=0, z=0))
 
+        if recv_data is None:
+            logger.warning("データの受信に失敗しました。再試行しますか？")
+            is_continue = input("再試行しますか？ (y/n): ").strip().lower()
 
-def competition_pipeline(
-    logger: logging.Logger, trial_id: str, maxwait: float, evaal_api_server: str
-):
-    """
-    競技用のパイプライン
-    """
-    logger.info("競技用パイプラインを実行します")
+            if is_continue == "n":
+                logger.info("パイプラインを終了します。")
+                break
 
-    # 初期化
-    localizer = Localizer(trial_id, logger)
-    requester = Requester(evaal_api_server, trial_id, logger)
+            continue
 
-    # 初期状態を取得
-    initial_state = requester.send_state_req()
-    print(f"初期状態: {initial_state}")
-    time.sleep(maxwait)
+        if isinstance(recv_data, TrialState):
+            logger.info("パイプラインを終了します。")
+            break
 
-    # TODO
+        localizer.set_sensor_data(recv_data)
+
+        time.sleep(maxwait)
+
+    estimates = requester.send_estimates_req()
+    if estimates is not None:
+        datetime = time.strftime("%Y%m%d_%H%M%S")
+        estimates.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
