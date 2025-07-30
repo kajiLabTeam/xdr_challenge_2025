@@ -14,7 +14,7 @@ class Visualizer(DataRecorderProtocol):
     def plot_map(
         self,
         map_file: str | Path,
-        output_file: str | Path | None = None,
+        output_file: str | Path = "output_map.png",
         map_origin: tuple[float, float] = (-5.625, -12.75),
         map_ppm: float = 100,
         show: bool = True,
@@ -24,7 +24,12 @@ class Visualizer(DataRecorderProtocol):
         推定結果をプロットする
 
         Args:
-            filename: 保存するファイル名。Noneの場合は表示する
+            map_file (str | Path): マップ画像ファイルのパス
+            output_file (str | Path | None): 出力ファイルのパス。
+            map_origin (tuple[float, float]): マップの原点座標 (x, y)
+            map_ppm (float): ピクセルあたりのメートル数
+            show (bool): プロットを表示するかどうか
+            save (bool): プロットをファイルに保存するかどうか
         """
         src_dir = Path().resolve()
         bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
@@ -50,7 +55,7 @@ class Visualizer(DataRecorderProtocol):
         plt.colorbar(scatter, ax=ax, label="timestamp (s)")
         plt.legend()
 
-        if output_file:
+        if save:
             plt.savefig(src_dir / output_file)
-
-        plt.show()
+        if show:
+            plt.show()
