@@ -1,7 +1,7 @@
 from logging import Logger
-from typing import final
+from typing import Protocol, final
 from src.type import SensorData
-from ._position import PositionDataRecorder
+from ._position import PositionDataRecorder, PositionDataRecorderProtocol
 from .acce import AcceDataRecorder
 from .ahrs import AhrsDataRecorder
 from .gpos import GposDataRecorder
@@ -10,6 +10,25 @@ from .magn import MagnDataRecorder
 from .uwbp import UwbPDataRecorder
 from .uwbt import UwbTDataRecorder
 from .viso import VisoDataRecorder
+
+
+class DataRecorderProtocol(Protocol, PositionDataRecorderProtocol):
+    trial_id: str
+    logger: Logger
+    acc_datarecorder: AcceDataRecorder
+    gyro_datarecorder: GyroDataRecorder
+    magn_datarecorder: MagnDataRecorder
+    ahrs_datarecorder: AhrsDataRecorder
+    uwbp_datarecorder: UwbPDataRecorder
+    uwbt_datarecorder: UwbTDataRecorder
+    gpos_datarecorder: GposDataRecorder
+    viso_datarecorder: VisoDataRecorder
+
+    def set_sensor_data(self, sensor_data: SensorData) -> None:
+        raise NotImplementedError("This method should be implemented by subclasses.")
+
+    def clear_last_appended_data(self) -> None:
+        raise NotImplementedError("This method should be implemented by subclasses.")
 
 
 class DataRecorder(PositionDataRecorder):

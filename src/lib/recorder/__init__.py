@@ -1,1 +1,1 @@
-from ._recorder import DataRecorder
+from ._recorder import DataRecorder, DataRecorderProtocol

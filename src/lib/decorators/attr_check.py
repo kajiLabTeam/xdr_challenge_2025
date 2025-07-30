@@ -7,9 +7,15 @@ if TYPE_CHECKING:
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-def require_attr_appended(attr_name: str) -> Callable[[F], F]:
+def require_attr_appended(
+    attr_name: str, max_additions: int | None = None
+) -> Callable[[F], F]:
     """
     デコレータ: 指定された属性に要素が追加されていることを確認する
+
+    Args:
+        attr_name (str): 確認する属性の名前
+        max_additions (int | None): 最大追加数。Noneの場合は制限なし
     """
 
     def decorator(method: F) -> F:
@@ -29,6 +35,11 @@ def require_attr_appended(attr_name: str) -> Callable[[F], F]:
 
             if current_len <= prev_len:
                 self.logger.warning(f"{attr_name} に新しい要素が追加されていません。")
+
+            elif max_additions is not None and current_len - prev_len > max_additions:
+                self.logger.warning(
+                    f"{attr_name} に追加された要素の数が制限を超えています。"
+                )
 
             setattr(self, f"_prev_len_{attr_name}", current_len)
             return method(self, *args, **kwargs)
