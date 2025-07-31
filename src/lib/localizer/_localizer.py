@@ -22,7 +22,7 @@ class Localizer(DataRecorder, Visualizer, PDRLocalizer, VISOLocalizer, UWBLocali
 
         last_pos = self.positions[-1] or Position(0.0, 0.0, 0.0)
         pos = Position(
-            x=last_pos.x + 1,
+            x=last_pos.x - 1,
             y=last_pos.y,
             z=last_pos.z,
         )

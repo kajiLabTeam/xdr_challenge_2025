@@ -1,6 +1,6 @@
 from logging import Logger
 from typing import Protocol, final
-from src.type import SensorData
+from src.type import Position, SensorData
 from ._position import PositionDataRecorder, PositionDataRecorderProtocol
 from .acce import AcceDataRecorder
 from .ahrs import AhrsDataRecorder
@@ -54,6 +54,20 @@ class DataRecorder(PositionDataRecorder):
         self.uwbt_datarecorder = UwbTDataRecorder(trial_id, logger)
         self.gpos_datarecorder = GposDataRecorder(trial_id, logger)
         self.viso_datarecorder = VisoDataRecorder(trial_id, logger)
+
+    @final
+    def set_init_pos(self, pos: Position) -> None:
+        """
+        初期位置を設定するメソッド
+        """
+        if len(self.positions) > 0:
+            self.logger.error(
+                "初期位置は一度だけ設定できます。既に位置情報が設定されています"
+            )
+            return
+
+        self.logger.info(f"初期位置を設定: {pos}")
+        self.positions.append(pos)
 
     @final
     def set_sensor_data(self, sensor_data: SensorData) -> None:

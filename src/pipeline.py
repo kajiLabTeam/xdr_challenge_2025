@@ -27,7 +27,12 @@ def pipeline(
 
     # 初期状態を取得
     initial_state = requester.send_state_req()
+    if initial_state is None:
+        logger.error("初期状態の取得に失敗しました")
+        return
+
     logger.info(f"初期状態: {initial_state}")
+    localizer.set_init_pos(initial_state.pos)
     time.sleep(maxwait)
 
     while True:
