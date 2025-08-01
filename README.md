@@ -3,7 +3,7 @@
 ## セットアップ
 ### 仮想環境の作成
 ```bash
-python -m .venv venv
+python -m venv .venv
 ```
 
 ### 仮想環境のアクティベート
@@ -25,6 +25,15 @@ pip install -r requirements.txt
 cp .env.example .env.competition
 ```
 
+`.env.demo` の変更を反映しない設定
+```bash
+git update-index --assume-unchanged .env.demo
+```
+
+`.env.demo` の変更を反映しない設定の解除
+```bash
+git update-index --no-assume-unchanged .env.demo
+```
 
 ## 実行方法
 ### デモ環境
