@@ -1,13 +1,12 @@
 import io
 from logging import Logger
-from typing import Any
-import requests
 from urllib.parse import urljoin
 from src.type import Position, SensorData, TrialState
 import pandas as pd
+from ._base import BaseRequester
 
 
-class Requester:
+class Requester(BaseRequester):
     def __init__(self, server: str, trial_id: str, logger: Logger):
         """
         Args:
@@ -35,7 +34,7 @@ class Requester:
         if res.status_code == 200:
             self.logger.info("リロードしました")
             try:
-                return TrialState(res.text)
+                return TrialState(text=res.text)
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None
@@ -67,7 +66,8 @@ class Requester:
         res = self._get("state")
         if res.status_code == 200:
             try:
-                return TrialState(res.text)
+                self.logger.info("トライアルの状態を取得しました")
+                return TrialState(text=res.text)
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None
@@ -87,7 +87,7 @@ class Requester:
     def send_nextdata_req(
         self,
         position: Position | None = None,
-        online: bool = False,
+        offline: bool = False,
         horizon: float = 0.5,
     ) -> SensorData | TrialState | None:
         """
@@ -106,15 +106,15 @@ class Requester:
 
         Args:
             position (Position | None): クライアントが算出した現在位置。Noneの場合は送信しません。
-            online (bool): オンラインモードであるかどうか。デフォルトはFalse。
+            offline (bool): オフラインモードであるかどうか。デフォルトはFalse。
             horizon (float): センサーデータの取得時間範囲。オンラインモードでのみ使用されます。
         Returns:
             list[dict]: サーバーからのレスポンス
             None: リクエストに失敗した場合
         """
         params: dict = {}
-        if online:
-            params["online"] = "true"
+        if offline:
+            params["offline"] = "true"
         if position is not None:
             params["position"] = position.to_str()
 
@@ -133,7 +133,7 @@ class Requester:
         elif res.status_code == 405:
             self.logger.info(f"トライアルが終了しています。({res.text})")
             try:
-                return TrialState(res.text)
+                return TrialState(text=res.text)
             except ValueError as e:
                 self.logger.error(f"状態を取得できませんでした: {e}")
                 return None
@@ -176,12 +176,3 @@ class Requester:
 
         self.logger.error(f"{res.status_code}: 推定値取得に失敗しました。({res.text})")
         return None
-
-    def _get(self, path: str, **kwargs: Any) -> requests.Response:
-        """
-        サーバーにGETリクエストを送信する
-        """
-        request_path = urljoin(self.server_url, path)
-        res = requests.get(str(request_path), params=kwargs)
-
-        return res

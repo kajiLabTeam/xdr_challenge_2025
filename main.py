@@ -17,6 +17,12 @@ logger = colorlog.getLogger()
 
 @click.command()
 @click.option("-d", "--demo", is_flag=True, help="DEMOモード (default: False)")
+@click.option(
+    "-i",
+    "--immediate",
+    is_flag=True,
+    help="即時実行。EvAAL APIを使用しない (default: False)",
+)
 @click.option("-w", "--maxwait", default=0.5, help="最大待機時間 (default: 0.5秒)")
 @click.option(
     "-l",
@@ -57,6 +63,7 @@ def main(
     loglevel: str,
     show_plot_map: bool,
     no_save_plot_map: bool,
+    immediate: bool,
 ) -> None:
     output_dir_path = init_dir(output_dir)
     init_logging(loglevel)
@@ -66,7 +73,7 @@ def main(
         logger.error("環境変数の読み込みに失敗しました")
         return
 
-    ok = check_settings(env_vars, demo, maxwait, run_server, output_dir_path)
+    ok = check_settings(env_vars, demo, maxwait, run_server, output_dir_path, immediate)
     if not ok:
         return
 
@@ -87,6 +94,7 @@ def main(
         output_dir_path,
         show_plot_map,
         no_save_plot_map,
+        immediate,
     )
 
     logger.info("終了します")
@@ -101,11 +109,20 @@ def run_evaal_api_server(logger: logging.Logger) -> None:
 
 
 def check_settings(
-    env_vars: EnvVars, demo: bool, maxwait: float, run_server: bool, output_dir: Path
+    env_vars: EnvVars,
+    demo: bool,
+    maxwait: float,
+    run_server: bool,
+    output_dir: Path,
+    immediate: bool,
 ) -> bool:
     """
     設定(環境変数, オプション)のチェック
     """
+    if maxwait <= 0:
+        logger.error("最大待機時間は0より大きい値を指定してください")
+        return False
+
     if demo:
         if datetime.now().month >= 9:
             logger.warning(
@@ -130,6 +147,13 @@ def check_settings(
             logger.error(
                 "本番環境ではローカルの EvAAL API サーバーを使用できません。"
                 + "--run-server(-r) オプションを外してください",
+            )
+            return False
+
+        if immediate:
+            logger.error(
+                "本番環境では即時実行できません。"
+                + "--immediate(-i) オプションを外してください",
             )
             return False
 

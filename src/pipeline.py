@@ -1,7 +1,9 @@
 import logging
-import time
 from pathlib import Path
+import time
 from src.lib import Localizer, Requester, RequesterError
+from src.lib import wait_if_not_immediate
+from src.lib.requester import BaseRequester, ImmediateRequester
 from src.type import SensorData, TrialState
 
 
@@ -13,6 +15,7 @@ def pipeline(
     output_dir: Path,
     show_plot_map: bool,
     no_save_plot_map: bool,
+    immediate: bool,
 ) -> None:
     """
     実行手順の定義
@@ -20,10 +23,12 @@ def pipeline(
     logger.info("パイプラインを実行します")
 
     # 初期化
+    SelectedReqer: type[BaseRequester] = ImmediateRequester if immediate else Requester
+    requester = SelectedReqer(evaal_api_server, trial_id, logger)
     localizer = Localizer(trial_id, logger)
-    requester = Requester(evaal_api_server, trial_id, logger)
+
     requester.send_reload_req()
-    time.sleep(maxwait)
+    wait_if_not_immediate(immediate, maxwait)
 
     # 初期状態を取得
     initial_state = requester.send_state_req()
@@ -33,18 +38,20 @@ def pipeline(
 
     logger.info(f"初期状態: {initial_state}")
     localizer.set_init_pos(initial_state.pos)
-    time.sleep(maxwait)
+    wait_if_not_immediate(immediate, maxwait)
 
     while True:
         try:
-            recv_data = requester.send_nextdata_req(position=localizer[-1])
+            recv_data = requester.send_nextdata_req(
+                position=localizer[-1]
+            )  # TODO: 初期位置を考慮していない
 
             # センサーデータを受信した場合
             if isinstance(recv_data, SensorData):
                 localizer.clear_last_appended_data()
                 localizer.set_sensor_data(recv_data)
                 localizer.estimate()
-                time.sleep(maxwait)
+                wait_if_not_immediate(immediate, maxwait)
                 continue
 
             # TrialState を受信した場合(トライアルが終了した場合)

@@ -1,5 +1,15 @@
-from typing import Iterator, Literal, NamedTuple, TypedDict, cast
+from typing import (
+    Any,
+    Iterator,
+    Literal,
+    NamedTuple,
+    NotRequired,
+    TypedDict,
+    Unpack,
+    cast,
+)
 from parse import parse
+import pydantic
 import re
 
 SensorType = Literal["ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"]
@@ -46,6 +56,22 @@ class _TrialState(TypedDict):
     pos: Position
 
 
+class _TrialStateArgs(TypedDict):
+    """
+    トライアルの状態を表す引数の型定義
+    """
+
+    text: NotRequired[str]
+    trialts: NotRequired[float]
+    rem: NotRequired[float]
+    V: NotRequired[float]
+    S: NotRequired[float]
+    p: NotRequired[float]
+    h: NotRequired[float]
+    pts: NotRequired[float]
+    pos: NotRequired[Position]
+
+
 class TrialState:
     """
     トライアルの状態を表すデータ構造の型定義
@@ -55,17 +81,45 @@ class TrialState:
 
     def __init__(
         self,
-        text: str,
+        **kwargs: Unpack[_TrialStateArgs],
     ):
-        state = self._parse_state(text)
-        self.trialts = state["trialts"]
-        self.rem = state["rem"]
-        self.V = state["V"]
-        self.S = state["S"]
-        self.p = state["p"]
-        self.h = state["h"]
-        self.pts = state["pts"]
-        self.pos = state["pos"]
+        if "text" in kwargs and isinstance(kwargs["text"], str):
+            state = self._parse_state(kwargs["text"])
+            self.trialts = state["trialts"]
+            self.rem = state["rem"]
+            self.V = state["V"]
+            self.S = state["S"]
+            self.p = state["p"]
+            self.h = state["h"]
+            self.pts = state["pts"]
+            self.pos = state["pos"]
+            return
+
+        if "trialts" not in kwargs or not isinstance(kwargs["trialts"], float):
+            raise ValueError("trialts(arg[0]) は float 型でなければなりません")
+        if "rem" not in kwargs or not isinstance(kwargs["rem"], float):
+            raise ValueError("rem(arg[1]) は float 型でなければなりません")
+        if "V" not in kwargs or not isinstance(kwargs["V"], int):
+            raise ValueError("V(arg[2]) は int 型でなければなりません")
+        if "S" not in kwargs or not isinstance(kwargs["S"], int):
+            raise ValueError("S(arg[3]) は int 型でなければなりません")
+        if "p" not in kwargs or not isinstance(kwargs["p"], float):
+            raise ValueError("p(arg[4]) は float 型でなければなりません")
+        if "h" not in kwargs or not isinstance(kwargs["h"], float):
+            raise ValueError("h(arg[5]) は float 型でなければなりません")
+        if "pts" not in kwargs or not isinstance(kwargs["pts"], float):
+            raise ValueError("pts(arg[6]) は float 型でなければなりません")
+        if "pos" not in kwargs or not isinstance(kwargs["pos"], Position):
+            raise ValueError("pos(arg[7]) は Position 型でなければなりません")
+
+        self.trialts = kwargs["trialts"]
+        self.rem = kwargs["rem"]
+        self.V = kwargs["V"]
+        self.S = kwargs["S"]
+        self.p = kwargs["p"]
+        self.h = kwargs["h"]
+        self.pts = kwargs["pts"]
+        self.pos = kwargs["pos"]
 
     def __str__(self) -> str:
         """
@@ -186,3 +240,57 @@ class SensorData:
 
     def __next__(self) -> _SensorRow:
         return next(iter(self.data))
+
+
+class IniTrial(pydantic.BaseModel):
+    datafile: str
+    commsep: str
+    sepch: str
+    V: int
+    S: int
+    inipos: Position
+    reloadable: bool
+
+    @pydantic.field_validator("inipos", mode="before")
+    @classmethod
+    def validate_inipos(cls, v: Any) -> Position:
+        """
+        文字列で渡されるiniposを検証し、floatのタプルに変換する。
+        """
+        if not isinstance(v, str):
+            raise ValueError("inipos must be a string")
+
+        parts = v.split(";")
+        if len(parts) != 3:
+            raise ValueError("inipos must have three parts separated by semicolons")
+
+        try:
+            return Position(float(parts[0]), float(parts[1]), float(parts[2]))
+        except (ValueError, IndexError):
+            raise ValueError("Each part of inipos must be a valid number")
+
+
+IniTrials = dict[str, IniTrial]
+
+
+class Estimate(NamedTuple):
+    """
+    推定結果を表すデータ構造
+    """
+
+    pts: float
+    c: float
+    h: float
+    s: float
+    x: float
+    y: float
+    z: float
+
+    @property
+    def pos(self) -> Position:
+        """
+        推定位置を返すプロパティ
+        Returns:
+            Position: 推定位置を表す Position オブジェクト
+        """
+        return Position(self.x, self.y, self.z)
