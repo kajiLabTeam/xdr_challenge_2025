@@ -42,9 +42,7 @@ def pipeline(
 
     while True:
         try:
-            recv_data = requester.send_nextdata_req(
-                position=localizer[-1]
-            )  # TODO: 初期位置を考慮していない
+            recv_data = requester.send_nextdata_req(position=localizer[-1])
 
             # センサーデータを受信した場合
             if isinstance(recv_data, SensorData):
