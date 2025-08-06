@@ -66,7 +66,9 @@ def main(
     immediate: bool,
 ) -> None:
     output_dir_path = init_dir(output_dir)
-    init_logging(loglevel)
+
+    datetime = time.strftime("%Y%m%d_%H%M%S")
+    init_logging(loglevel, output_dir_path / f"log_{datetime}.log")
 
     env_vars = load_env(demo)
     if not env_vars:
@@ -178,12 +180,16 @@ def init_dir(output_dir: str) -> Path:
     return output_dir_path
 
 
-def init_logging(loglevel: str) -> None:
+def init_logging(loglevel: str, output_file: Path) -> None:
     """
     ロギングの初期化
+    Args:
+        loglevel (str): ログレベル (debug, info, warning, error, critical)
+        output_dir_path (Path): 出力ディレクトリのパス
     """
-    handler = colorlog.StreamHandler()
-    handler.setFormatter(
+    # コンソール用ハンドラー（カラー）
+    console_handler = colorlog.StreamHandler()
+    console_handler.setFormatter(
         colorlog.ColoredFormatter(
             "%(log_color)s%(asctime)s [%(levelname)s] %(message)s",
             datefmt="%H:%M:%S",
@@ -197,12 +203,19 @@ def init_logging(loglevel: str) -> None:
         )
     )
 
-    logger.setLevel(logging.INFO)
+    # ファイル用ハンドラー（プレーンテキスト）
+    file_handler = logging.FileHandler(output_file, encoding="utf-8")
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+    )
 
-    # logger の設定
+    # 既存ハンドラーをクリアして再設定
+    logger.handlers = []
     logger.setLevel(getattr(logging, loglevel.upper(), logging.INFO))
-    logger.handlers = []  # 既存の handler を削除
-    logger.addHandler(handler)
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
 
 
 def load_env(demo: bool) -> EnvVars | None:
