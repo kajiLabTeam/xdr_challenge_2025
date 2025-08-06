@@ -11,6 +11,7 @@ from typing import (
 from parse import parse
 import pydantic
 import re
+from scipy.spatial.transform import Rotation as R
 
 SensorType = Literal["ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"]
 ALLOWED_SENSOR_TYPES = {"ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"}
@@ -25,20 +26,70 @@ class Position(NamedTuple):
     y: float
     z: float
 
-    def to_str(self) -> str:
-        """
-        位置を文字列に変換するメソッド
-
-        Returns:
-            str: 位置を表す文字列
-        """
-        return f"{self.x},{self.y},{self.z}"
-
     def __repr__(self) -> str:
         return f"({self.x},{self.y},{self.z})"
 
     def __str__(self) -> str:
-        return f"({self.x},{self.y},{self.z})"
+        return f"{self.x},{self.y},{self.z}"
+
+
+class QOrientation(NamedTuple):
+    """
+    姿勢を表すデータ構造(クォータニオン形式)
+    """
+
+    w: float
+    x: float
+    y: float
+    z: float
+
+    def __repr__(self) -> str:
+        return f"({self.w},{self.x},{self.y},{self.z})"
+
+    def __str__(self) -> str:
+        return f"({self.w},{self.x},{self.y},{self.z})"
+
+    def to_euler_rad(self) -> tuple[float, float, float]:
+        """
+        クォータニオンをオイラー角に変換するメソッド
+        Returns:
+            tuple[float, float, float]: オイラー角 (roll, pitch, yaw)
+        """
+        r = R.from_quat([self.x, self.y, self.z, self.w])
+        euler = r.as_euler("xyz", degrees=False)
+        roll, pitch, yaw = euler
+
+        return roll, pitch, yaw
+
+
+class QOrientationWithTimestamp(NamedTuple):
+    """
+    姿勢を表すデータ構造(クォータニオン形式)にタイムスタンプを追加したもの
+    """
+
+    timestamp: float
+    w: float
+    x: float
+    y: float
+    z: float
+
+    def __repr__(self) -> str:
+        return f"({self.w},{self.x},{self.y},{self.z})"
+
+    def __str__(self) -> str:
+        return f"({self.w},{self.x},{self.y},{self.z})"
+
+    def to_euler_rad(self) -> tuple[float, float, float]:
+        """
+        クォータニオンをオイラー角に変換するメソッド
+        Returns:
+            tuple[float, float, float]: オイラー角 (roll, pitch, yaw)
+        """
+        r = R.from_quat([self.x, self.y, self.z, self.w])
+        euler = r.as_euler("xyz", degrees=False)
+        roll, pitch, yaw = euler
+
+        return roll, pitch, yaw
 
 
 class _TrialState(TypedDict):
@@ -128,7 +179,7 @@ class TrialState:
         Returns:
             str: トライアルの状態を表す文字列
         """
-        return f"trialts={self.trialts}, rem={self.rem}, V={self.V}, S={self.S}, p={self.p}, h={self.h}, pts={self.pts}, pos={self.pos.to_str()}"
+        return f"trialts={self.trialts}, rem={self.rem}, V={self.V}, S={self.S}, p={self.p}, h={self.h}, pts={self.pts}, pos={str(self.pos)}"
 
     def _parse_state(self, text: str) -> _TrialState:
         """
