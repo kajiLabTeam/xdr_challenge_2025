@@ -2,8 +2,6 @@ from typing import final
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.safelist._safelist import SafeList
-from src.services.gpos import GposService
-from src.services.viso import VisoService
 from src.type import Position
 
 

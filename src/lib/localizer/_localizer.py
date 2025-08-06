@@ -18,10 +18,9 @@ class Localizer(DataRecorder, Visualizer, PDRLocalizer, VIOLocalizer, UWBLocaliz
     def estimate(self) -> None:
         # pdr_pos = self.estimate_pdr()
         # uwb_pos = self.estimate_uwb()
-        viso_pos = self.estimate_vio()
-        viso_orientations = self.estimate_vio_orientations()
+        # viso_pos = self.estimate_vio()
 
         last_pos = self.last_position()
 
         # 推定結果を保存
-        self.positions.append(viso_pos if viso_pos else Position(0, 0, 0))
+        self.positions.append(Position(last_pos.x + 1, last_pos.y, last_pos.z))
