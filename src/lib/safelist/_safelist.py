@@ -4,8 +4,8 @@ T = TypeVar("T")
 
 
 class SafeList(Generic[T]):
-    def __init__(self, data: list[T]):
-        self._data = data
+    def __init__(self, *data: T):
+        self._data = list(data)
 
     def __getitem__(self, index: int) -> T | None:
         try:
@@ -37,5 +37,5 @@ class SafeList(Generic[T]):
     def append(self, item: T) -> None:
         self._data.append(item)
 
-    def to_list(self) -> list[T]:
-        return self._data.copy()
+    def extend(self, items: list[T]) -> None:
+        self._data.extend(items)

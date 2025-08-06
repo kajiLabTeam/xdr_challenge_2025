@@ -1,20 +1,23 @@
-from typing import Any, Generic, Type, TypeVar, cast, final
+from typing import Any, Type, TypeVar, cast, final
 from src.type import SensorType
 import logging
 
 DataType = TypeVar("DataType")
 
 
-class BaseDataRecorder(Generic[DataType]):
+class BaseDataRecorder[DataType]:
     key: str
     columns: dict[str, Type[str | float | bool]]
-    __data: list[DataType] = []
-    __last_appended_data: list[DataType] = []
+    __data: list[DataType]
+    __last_appended_data: list[DataType]
 
     @final
     def __init__(self, trial_id: str, logger: logging.Logger):
         self.trial_id = trial_id
         self.logger = logger
+
+        self.__data = []
+        self.__last_appended_data = []
 
     @final
     def __init_subclass__(cls, **kwargs: Any):
@@ -49,7 +52,7 @@ class BaseDataRecorder(Generic[DataType]):
         最後に追加されたセンサーデータ
         直接アクセスすることはできません
         """
-        return self.__last_appended_data
+        return self.__last_appended_data.copy()
 
     @final
     def append(self, sensor_type: SensorType, data: list[str]) -> None:

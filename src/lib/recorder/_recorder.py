@@ -2,6 +2,7 @@ from logging import Logger
 from typing import Protocol, final
 from src.type import Position, SensorData
 from ._position import PositionDataRecorder, PositionDataRecorderProtocol
+from ._orientation import OrientationDataRecorder, OrientationDataRecorderProtocol
 from .acce import AcceDataRecorder
 from .ahrs import AhrsDataRecorder
 from .gpos import GposDataRecorder
@@ -12,7 +13,9 @@ from .uwbt import UwbTDataRecorder
 from .viso import VisoDataRecorder
 
 
-class DataRecorderProtocol(PositionDataRecorderProtocol):
+class DataRecorderProtocol(
+    PositionDataRecorderProtocol, OrientationDataRecorderProtocol, Protocol
+):
     trial_id: str
     logger: Logger
     acc_datarecorder: AcceDataRecorder
@@ -25,13 +28,13 @@ class DataRecorderProtocol(PositionDataRecorderProtocol):
     viso_datarecorder: VisoDataRecorder
 
     def set_sensor_data(self, sensor_data: SensorData) -> None:
-        raise NotImplementedError("This method should be implemented by subclasses.")
+        raise NotImplementedError("This method should be implemented by subclasses. DataRecorderProtocol.set_sensor_data")
 
     def clear_last_appended_data(self) -> None:
-        raise NotImplementedError("This method should be implemented by subclasses.")
+        raise NotImplementedError("This method should be implemented by subclasses. DataRecorderProtocol.clear_last_appended_data")
 
 
-class DataRecorder(PositionDataRecorder):
+class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
     """
     データの記録を行うクラス
     """

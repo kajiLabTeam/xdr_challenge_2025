@@ -116,7 +116,7 @@ class Requester(BaseRequester):
         if offline:
             params["offline"] = "true"
         if position is not None:
-            params["position"] = position.to_str()
+            params["position"] = str(position)
 
         res = self._get("nextdata", **params)
 

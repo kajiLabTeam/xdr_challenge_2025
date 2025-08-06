@@ -1,1 +1,2 @@
 from ._recorder import DataRecorder, DataRecorderProtocol
+from ._orientation import OrientationDataRecorder, OrientationDataRecorderProtocol

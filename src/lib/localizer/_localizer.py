@@ -4,11 +4,11 @@ from src.lib.recorder import DataRecorder
 from src.lib.visualizer._visualizer import Visualizer
 from src.type import Position
 from .pdr import PDRLocalizer
-from .viso import VISOLocalizer
+from .vio import VIOLocalizer
 from .uwb import UWBLocalizer
 
 
-class Localizer(DataRecorder, Visualizer, PDRLocalizer, VISOLocalizer, UWBLocalizer):
+class Localizer(DataRecorder, Visualizer, PDRLocalizer, VIOLocalizer, UWBLocalizer):
     """
     位置推定のためのクラス
     """
@@ -18,14 +18,10 @@ class Localizer(DataRecorder, Visualizer, PDRLocalizer, VISOLocalizer, UWBLocali
     def estimate(self) -> None:
         # pdr_pos = self.estimate_pdr()
         # uwb_pos = self.estimate_uwb()
-        # viso_pos = self.estimate_viso()
+        viso_pos = self.estimate_vio()
+        viso_orientations = self.estimate_vio_orientations()
 
-        last_pos = self.positions[-1] or Position(0.0, 0.0, 0.0)
-        pos = Position(
-            x=last_pos.x - 1,
-            y=last_pos.y,
-            z=last_pos.z,
-        )
+        last_pos = self.last_position()
 
         # 推定結果を保存
-        self.positions.append(pos)
+        self.positions.append(viso_pos if viso_pos else Position(0, 0, 0))
