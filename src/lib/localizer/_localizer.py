@@ -17,10 +17,13 @@ class Localizer(DataRecorder, Visualizer, PDRLocalizer, VIOLocalizer, UWBLocaliz
     @require_attr_appended("positions", 1)
     def estimate(self) -> None:
         # pdr_pos = self.estimate_pdr()
-        # uwb_pos = self.estimate_uwb()
+        uwb_pos = self.estimate_uwb()
         # viso_pos = self.estimate_vio()
 
-        last_pos = self.last_position()
-
-        # 推定結果を保存
-        self.positions.append(Position(last_pos.x + 1, last_pos.y, last_pos.z))
+        # UWBの推定結果が得られた場合はそれを使用、そうでなければ前回の位置を使用
+        if uwb_pos is not None:
+            self.positions.append(uwb_pos)
+        else:
+            last_pos = self.last_position()
+            # 推定結果を保存（暫定的に+1）
+            self.positions.append(Position(last_pos.x + 1, last_pos.y, last_pos.z))

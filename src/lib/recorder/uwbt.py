@@ -2,7 +2,7 @@ from typing import TypedDict
 from ._base import BaseDataRecorder
 
 
-class UwbPData(TypedDict):
+class UwbTData(TypedDict):
     app_timestamp: float
     sensor_timestamp: float
     tag_id: str
@@ -12,7 +12,7 @@ class UwbPData(TypedDict):
     nlos: bool
 
 
-class UwbTDataRecorder(BaseDataRecorder[UwbPData]):
+class UwbTDataRecorder(BaseDataRecorder[UwbTData]):
     key = "UWBT"
     columns = {
         "app_timestamp": float,
