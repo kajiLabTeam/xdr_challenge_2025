@@ -19,6 +19,8 @@ class Visualizer(DataRecorderProtocol):
         map_ppm: float = 100,
         show: bool = True,
         save: bool = True,
+        maxwait: float | None = None,
+        gpos: bool = False,
     ) -> None:
         """
         推定結果をプロットする
@@ -50,7 +52,20 @@ class Visualizer(DataRecorderProtocol):
 
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
-        scatter = ax.scatter(df.x, df.y, s=3, label="location (ground truth)")
+        c = df.index * maxwait if maxwait else df.index
+        scatter = ax.scatter(df.x, df.y, s=3, c=c, label="location (estimated)")
+        if gpos:
+            gpos_data = self.gpos_datarecorder.data
+            gpos_df = pd.DataFrame(gpos_data)
+            ax.scatter(
+                gpos_df["location_x"],
+                gpos_df["location_y"],
+                s=3,
+                c="red",
+                alpha=0.2,
+                label="location (GPOS)",
+            )
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
 

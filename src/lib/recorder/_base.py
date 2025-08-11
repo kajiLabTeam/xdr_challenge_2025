@@ -54,6 +54,16 @@ class BaseDataRecorder[DataType]:
         """
         return self.__last_appended_data.copy()
 
+    @property
+    def first_data(self) -> DataType | None:
+        """
+        最初のデータを取得します。
+        """
+        if not self.data:
+            return None
+        return self.data[0]
+
+
     @final
     def append(self, sensor_type: SensorType, data: list[str]) -> None:
         """

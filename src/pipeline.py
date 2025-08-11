@@ -67,13 +67,13 @@ def pipeline(
             if isinstance(e, RequesterError):
                 logger.warning("データの受信に失敗しました。再試行しますか？")
             else:
-                logger.error(f"予期しないエラーが発生しました。 {e}")
+                logger.error(f"予期しないエラーが発生しました。 {e}", exc_info=True)
 
             is_continue = (
                 input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
             )
             if is_continue == "no":
-                logger.error("予期しないエラー", e)
+                logger.error("予期しないエラー", e, exc_info=True)
                 break
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
@@ -89,4 +89,5 @@ def pipeline(
         output_dir / f"{trial_id}_{datetime}_map.png",
         show=show_plot_map,
         save=not no_save_plot_map,
+        gpos=True,
     )
