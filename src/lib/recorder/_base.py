@@ -97,7 +97,7 @@ class BaseDataRecorder[DataType]:
         """
         if len(data) != len(self.columns):
             msg = (
-                f"データの長さがカラム数と一致しません。"
+                f"[{self.key}] データの長さがカラム数と一致しません。"
                 f"期待されるカラム数: {len(self.columns)}, 実際のデータ長: {len(data)}"
             )
             self.logger.error(msg)

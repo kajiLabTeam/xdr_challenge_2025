@@ -13,6 +13,7 @@ class VisoData(TypedDict):
     quat_x: float
     quat_y: float
     quat_z: float
+    quat_w: float
 
 
 class VisoDataRecorder(BaseDataRecorder[VisoData]):
@@ -26,6 +27,7 @@ class VisoDataRecorder(BaseDataRecorder[VisoData]):
         "quat_x": float,
         "quat_y": float,
         "quat_z": float,
+        "quat_w": float,
     }
 
     def last_applended_orientations(self) -> SafeList[QOrientationWithTimestamp]:

@@ -1,6 +1,4 @@
-from typing import TypedDict, final
-
-import pandas as pd
+from typing import TypedDict
 from ._base import BaseDataRecorder
 
 
@@ -14,6 +12,7 @@ class GposData(TypedDict):
     quat_x: float
     quat_y: float
     quat_z: float
+    quat_w: float
 
 
 class GposDataRecorder(BaseDataRecorder[GposData]):
@@ -28,4 +27,5 @@ class GposDataRecorder(BaseDataRecorder[GposData]):
         "quat_x": float,
         "quat_y": float,
         "quat_z": float,
+        "quat_w": float,
     }

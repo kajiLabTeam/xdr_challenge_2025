@@ -11,6 +11,7 @@ class AhrsData(TypedDict):
     quat_2: float
     quat_3: float
     quat_4: float
+    quat_w: float
     accuracy: float
 
 
@@ -25,5 +26,6 @@ class AhrsDataRecorder(BaseDataRecorder[AhrsData]):
         "quat_2": float,
         "quat_3": float,
         "quat_4": float,
+        "quat_w": float,
         "accuracy": float,
     }
