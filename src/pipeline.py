@@ -82,6 +82,57 @@ def pipeline(
     estimates_df = requester.send_estimates_req()
     if estimates_df is not None:
         estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+    
+    # 生の測定値をCSVファイルに保存（重み付き平均なし）
+    if hasattr(localizer, 'get_raw_measurements'):
+        raw_measurements = localizer.get_raw_measurements()
+        for tag_id, measurements in raw_measurements.items():
+            if measurements:
+                import pandas as pd
+                raw_df = pd.DataFrame(
+                    [(pos.x, pos.y, pos.z, pos.is_los, pos.confidence, pos.method) 
+                     for pos in measurements],
+                    columns=["x", "y", "z", "is_los", "confidence", "method"]
+                )
+                raw_csv_file = output_dir / f"{trial_id}_{datetime}_tag_{tag_id}_raw.csv"
+                raw_df.to_csv(raw_csv_file, index=False)
+                
+                # NLOS統計を出力
+                nlos_count = raw_df[raw_df['is_los'] == False].shape[0]
+                los_count = raw_df[raw_df['is_los'] == True].shape[0]
+                total_count = len(raw_df)
+                nlos_ratio = (nlos_count / total_count * 100) if total_count > 0 else 0
+                
+                logger.info(f"Tag {tag_id} の生測定値を {raw_csv_file} に保存しました")
+                logger.info(f"  - Total: {total_count}, LOS: {los_count}, NLOS: {nlos_count} ({nlos_ratio:.1f}%)")
+    
+    # 各タグの軌跡をCSVファイルに保存（LOS/NLOS情報を含む、重み付き平均後）
+    if hasattr(localizer, 'get_tag_trajectories_with_los'):
+        tag_trajectories_with_los = localizer.get_tag_trajectories_with_los()
+        for tag_id, trajectory in tag_trajectories_with_los.items():
+            if trajectory:
+                import pandas as pd
+                tag_df = pd.DataFrame(
+                    [(pos.x, pos.y, pos.z, pos.is_los, pos.confidence, pos.method) 
+                     for pos in trajectory],
+                    columns=["x", "y", "z", "is_los", "confidence", "method"]
+                )
+                tag_csv_file = output_dir / f"{trial_id}_{datetime}_tag_{tag_id}.csv"
+                tag_df.to_csv(tag_csv_file, index=False)
+                logger.info(f"Tag {tag_id} の推定軌跡を {tag_csv_file} に保存しました (重み付き平均)")
+    elif hasattr(localizer, 'get_tag_trajectories'):
+        # 後方互換性のため、LOS情報なしのバージョンも対応
+        tag_trajectories = localizer.get_tag_trajectories()
+        for tag_id, trajectory in tag_trajectories.items():
+            if trajectory:
+                import pandas as pd
+                tag_df = pd.DataFrame(
+                    [(pos.x, pos.y, pos.z) for pos in trajectory],
+                    columns=["x", "y", "z"]
+                )
+                tag_csv_file = output_dir / f"{trial_id}_{datetime}_tag_{tag_id}.csv"
+                tag_df.to_csv(tag_csv_file, index=False)
+                logger.info(f"Tag {tag_id} の軌跡を {tag_csv_file} に保存しました")
 
     # 推定結果をマップにプロット
     localizer.plot_map(

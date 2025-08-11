@@ -1,7 +1,8 @@
-from typing import final, Dict, List, Tuple, Optional
+from typing import final, Dict, List, Tuple, Optional, NamedTuple
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import logging
+
 
 from src.lib.recorder import DataRecorderProtocol
 from src.type import Position
@@ -21,6 +22,16 @@ class TagEstimate:
         self.is_los = is_los  # Line of Sight フラグ
 
 
+class PositionWithLOS(NamedTuple):
+    """LOS/NLOS情報を含む位置データ"""
+    x: float
+    y: float
+    z: float
+    is_los: bool
+    confidence: float
+    method: str  # 'UWBT' or 'UWBP'
+
+
 class UWBLocalizer(DataRecorderProtocol):
     """
     UWB による位置推定のためのクラス
@@ -30,11 +41,14 @@ class UWBLocalizer(DataRecorderProtocol):
     
     def __init__(self) -> None:
         super().__init__()
-        self.tag_trajectories: Dict[str, List[Position]] = {}  # タグごとの推定軌跡
+        self.tag_trajectories: Dict[str, List[Position]] = {}  # タグごとの推定軌跡（互換性のため残す）
+        self.tag_trajectories_with_los: Dict[str, List[PositionWithLOS]] = {}  # LOS情報付き軌跡
         self.tag_estimates: Dict[str, List[TagEstimate]] = {}  # タグごとの推定履歴
         self.nlos_threshold = 0.5  # NLOS判定の閾値
         self.max_history = 10  # 各タグの推定履歴の最大保持数
         self.current_tag_positions: Dict[str, Position] = {}  # 各タグの現在位置
+        self.raw_measurements: Dict[str, List[PositionWithLOS]] = {}  # 生の測定値（重み付き平均なし）
+        self.uwbt_only_measurements: Dict[str, List[PositionWithLOS]] = {}  # UWBTのみの測定値
     
     def get_tag_pose(self, tag_id: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """指定されたタグの最新の位置と姿勢を取得"""
@@ -79,13 +93,13 @@ class UWBLocalizer(DataRecorderProtocol):
             if data["tag_id"] != tag_id:
                 continue
             
-            # NLOS判定
+            # NLOS判定（1.0がNLOS、0.0がLOS）
             nlos_value = data.get("nlos", 0.0)
-            is_los = nlos_value <= self.nlos_threshold
+            is_los = nlos_value < self.nlos_threshold
             
+            # NLOSでもデータを使用するが、信頼度を下げる
             if not is_los:
-                logger.debug(f"UWBT - Tag {tag_id}: NLOS detected (value={nlos_value:.2f}), skipping")
-                continue
+                logger.debug(f"UWBT - Tag {tag_id}: NLOS detected (value={nlos_value:.2f})")
             
             tag_loc, tag_quat = self.get_tag_pose(tag_id)
             if tag_loc is None or tag_quat is None:
@@ -108,7 +122,11 @@ class UWBLocalizer(DataRecorderProtocol):
             
             # 信頼度計算（距離が遠いほど信頼度低下）
             confidence = 1.0 / (1.0 + distance * 0.1)
-            confidence *= (1.0 - nlos_value)  # NLOS値で重み調整
+            # NLOSの場合は信頼度を下げる（1.0の場合は80%、0.0の場合は100%）
+            if is_los:
+                confidence *= 1.0  # LOSの場合は信頼度を維持
+            else:
+                confidence *= 0.8  # NLOSの場合は信頼度を20%低減（以前は50%だった）
             
             estimate = TagEstimate(
                 tag_id=tag_id,
@@ -254,14 +272,71 @@ class UWBLocalizer(DataRecorderProtocol):
             best_position = None
             
             for tag_id in all_tag_ids:
+                # 生の測定値を保存（重み付き平均前）
+                uwbt_estimates = self.estimate_from_uwbt(tag_id)
+                uwbp_estimates = self.estimate_from_uwbp(tag_id)
+                all_raw_estimates = uwbt_estimates + uwbp_estimates
+                
+                # 生の測定値を軌跡として保存
+                if tag_id not in self.raw_measurements:
+                    self.raw_measurements[tag_id] = []
+                
+                # UWBTのみの測定値を保存
+                if tag_id not in self.uwbt_only_measurements:
+                    self.uwbt_only_measurements[tag_id] = []
+                
+                for estimate in all_raw_estimates:
+                    raw_position = PositionWithLOS(
+                        x=float(estimate.position[0]),
+                        y=float(estimate.position[1]),
+                        z=float(estimate.position[2]),
+                        is_los=estimate.is_los,
+                        confidence=estimate.confidence,
+                        method=estimate.method
+                    )
+                    self.raw_measurements[tag_id].append(raw_position)
+                    
+                    # UWBTのみの場合は別途保存
+                    if estimate.method == 'UWBT':
+                        self.uwbt_only_measurements[tag_id].append(raw_position)
+                
+                # 既存の重み付き平均処理
                 result = self.estimate_position_per_tag(tag_id)
                 if result is not None:
                     position, confidence, count = result
                     
-                    # タグの軌跡を更新
+                    # タグの軌跡を更新（互換性のため両方更新）
                     if tag_id not in self.tag_trajectories:
                         self.tag_trajectories[tag_id] = []
                     self.tag_trajectories[tag_id].append(position)
+                    
+                    # LOS情報付き軌跡を更新
+                    if tag_id not in self.tag_trajectories_with_los:
+                        self.tag_trajectories_with_los[tag_id] = []
+                    
+                    # 最新の推定結果からLOS情報を取得
+                    if tag_id in self.tag_estimates and self.tag_estimates[tag_id]:
+                        latest_estimate = self.tag_estimates[tag_id][-1]
+                        position_with_los = PositionWithLOS(
+                            x=position.x,
+                            y=position.y,
+                            z=position.z,
+                            is_los=latest_estimate.is_los,
+                            confidence=confidence,
+                            method=latest_estimate.method
+                        )
+                    else:
+                        # デフォルト値を使用
+                        position_with_los = PositionWithLOS(
+                            x=position.x,
+                            y=position.y,
+                            z=position.z,
+                            is_los=True,
+                            confidence=confidence,
+                            method='UNKNOWN'
+                        )
+                    
+                    self.tag_trajectories_with_los[tag_id].append(position_with_los)
                     
                     # 現在位置を更新
                     self.current_tag_positions[tag_id] = position
@@ -303,8 +378,35 @@ class UWBLocalizer(DataRecorderProtocol):
         """指定されたタグの推定軌跡を取得"""
         return self.tag_trajectories.get(tag_id, []).copy()
     
+    def get_tag_trajectories_with_los(self) -> Dict[str, List[PositionWithLOS]]:
+        """全タグのLOS情報付き推定軌跡を取得"""
+        return self.tag_trajectories_with_los.copy()
+    
+    def get_tag_trajectory_with_los(self, tag_id: str) -> List[PositionWithLOS]:
+        """指定されたタグのLOS情報付き推定軌跡を取得"""
+        return self.tag_trajectories_with_los.get(tag_id, []).copy()
+    
+    def get_raw_measurements(self) -> Dict[str, List[PositionWithLOS]]:
+        """生の測定値（重み付き平均なし）を取得"""
+        return self.raw_measurements.copy()
+    
+    def get_raw_measurements_for_tag(self, tag_id: str) -> List[PositionWithLOS]:
+        """指定されたタグの生の測定値を取得"""
+        return self.raw_measurements.get(tag_id, []).copy()
+    
+    def get_uwbt_only_measurements(self) -> Dict[str, List[PositionWithLOS]]:
+        """UWBTのみの測定値を取得"""
+        return self.uwbt_only_measurements.copy()
+    
+    def get_uwbt_only_measurements_for_tag(self, tag_id: str) -> List[PositionWithLOS]:
+        """指定されたタグのUWBTのみの測定値を取得"""
+        return self.uwbt_only_measurements.get(tag_id, []).copy()
+    
     def clear_trajectories(self) -> None:
         """全ての軌跡をクリア"""
         self.tag_trajectories.clear()
+        self.tag_trajectories_with_los.clear()
         self.current_tag_positions.clear()
         self.tag_estimates.clear()
+        self.raw_measurements.clear()
+        self.uwbt_only_measurements.clear()

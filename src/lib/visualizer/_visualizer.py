@@ -48,13 +48,34 @@ class Visualizer(DataRecorderProtocol):
             map_origin[1] + height_m,
         )
 
+        # メインプロット（最終推定結果）
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
-        scatter = ax.scatter(df.x, df.y, s=3, label="location (ground truth)")
+        
+        # 時間軸をカラーマップで表現
+        scatter = ax.scatter(df.x, df.y, 
+                           c=range(len(df)), cmap='viridis',
+                           s=10, alpha=0.8, 
+                           edgecolors='black', linewidth=0.3,
+                           label="Final estimation")
+        
+        # 軌跡の線を追加
+        ax.plot(df.x, df.y, '-', color='gray', alpha=0.3, linewidth=1)
+        
+        # 始点と終点を強調
+        ax.scatter(df.x.iloc[0], df.y.iloc[0], 
+                 s=150, color='green', marker='s', 
+                 edgecolors='black', linewidth=2,
+                 label="Start", zorder=5)
+        ax.scatter(df.x.iloc[-1], df.y.iloc[-1], 
+                 s=150, color='red', marker='^', 
+                 edgecolors='black', linewidth=2,
+                 label="End", zorder=5)
+        
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
-
-        plt.colorbar(scatter, ax=ax, label="timestamp (s)")
+        ax.set_title(f"UWB Position Estimation - Final Result ({len(df)} points)")
+        plt.colorbar(scatter, ax=ax, label="Time step")
         plt.legend()
 
         if save:
@@ -63,3 +84,214 @@ class Visualizer(DataRecorderProtocol):
         if show:
             self.logger.info("プロットを表示します")
             plt.show()
+        
+        # 各タグの軌跡を個別にプロット
+        if hasattr(self, 'get_tag_trajectories'):
+            self.plot_tag_trajectories(
+                map_file=map_file,
+                output_file=output_file,
+                map_origin=map_origin,
+                map_ppm=map_ppm,
+                show=show,
+                save=save
+            )
+    
+    def plot_tag_trajectories(
+        self,
+        map_file: str | Path,
+        output_file: str | Path,
+        map_origin: tuple[float, float] = (-5.625, -12.75),
+        map_ppm: float = 100,
+        show: bool = True,
+        save: bool = True,
+    ) -> None:
+        """
+        各タグの軌跡を個別のファイルにプロットする（LOS/NLOS情報で色分け）
+        """
+        src_dir = Path().resolve()
+        bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
+        
+        height, width = bitmap_array.shape[:2]
+        width_m = width / map_ppm
+        height_m = height / map_ppm
+        
+        extent = (
+            map_origin[0],
+            map_origin[0] + width_m,
+            map_origin[1],
+            map_origin[1] + height_m,
+        )
+        
+        # LOS情報付きタグ軌跡を優先的に取得
+        use_los_info = False
+        use_raw_measurements = False
+        
+        # 生の測定値があるかチェック
+        if hasattr(self, 'get_raw_measurements'):
+            raw_measurements = self.get_raw_measurements()
+            if raw_measurements:
+                use_raw_measurements = True
+                trajectories_to_plot = raw_measurements
+                use_los_info = True  # 生の測定値にはLOS情報が含まれる
+        
+        if not use_raw_measurements:
+            if hasattr(self, 'get_tag_trajectories_with_los'):
+                tag_trajectories_with_los = self.get_tag_trajectories_with_los()
+                if tag_trajectories_with_los:
+                    use_los_info = True
+                    trajectories_to_plot = tag_trajectories_with_los
+        
+        if not use_raw_measurements and not use_los_info:
+            # 通常のタグ軌跡を取得（後方互換性）
+            tag_trajectories = self.get_tag_trajectories()
+            if not tag_trajectories:
+                self.logger.info("タグの軌跡データがありません")
+                return
+            trajectories_to_plot = tag_trajectories
+        
+        # 各タグごとに個別のプロットを作成
+        
+        for idx, (tag_id, trajectory) in enumerate(trajectories_to_plot.items()):
+            if not trajectory:
+                continue
+            
+            # 新しい図を作成
+            fig, ax = plt.subplots(1, 1, figsize=(20, 10))
+            ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
+            
+            if use_los_info:
+                # LOS情報付きの軌跡をDataFrameに変換
+                tag_df = pd.DataFrame(
+                    [(pos.x, pos.y, pos.z, pos.is_los, pos.confidence, pos.method) 
+                     for pos in trajectory],
+                    columns=["x", "y", "z", "is_los", "confidence", "method"]
+                )
+                
+                # LOSとNLOSを分離
+                los_df = tag_df[tag_df['is_los'] == True]
+                nlos_df = tag_df[tag_df['is_los'] == False]
+                
+                # UWBT と UWBP を分離
+                uwbt_df = tag_df[tag_df['method'] == 'UWBT']
+                uwbp_df = tag_df[tag_df['method'] == 'UWBP']
+                
+                # NLOSを含むかどうかをチェック
+                has_nlos = len(nlos_df) > 0
+                
+                # 軌跡の線をプロット（グレー）
+                ax.plot(tag_df.x, tag_df.y, '-', 
+                       color='gray', alpha=0.3, linewidth=1,
+                       label=f"Tag {tag_id} trajectory")
+                
+                # LOSポイントをプロット（青色）
+                if not los_df.empty:
+                    ax.scatter(los_df.x, los_df.y, s=20, 
+                             color='blue', alpha=0.6, 
+                             edgecolors='darkblue', linewidth=0.5,
+                             label=f"LOS ({len(los_df)} points)", zorder=3)
+                
+                # NLOSポイントをプロット（赤色）
+                if not nlos_df.empty:
+                    ax.scatter(nlos_df.x, nlos_df.y, s=30, 
+                             color='red', alpha=0.8, 
+                             edgecolors='darkred', linewidth=0.5,
+                             marker='x',  # NLOSは×印で強調
+                             label=f"NLOS ({len(nlos_df)} points)", zorder=4)
+                
+                # 統計情報を図に追加
+                los_ratio = len(los_df) / len(tag_df) * 100 if len(tag_df) > 0 else 0
+                uwbt_count = len(uwbt_df)
+                uwbp_count = len(uwbp_df)
+                
+                info_text = f"Total points: {len(trajectory)}\n"
+                info_text += f"LOS: {len(los_df)} ({los_ratio:.1f}%)\n"
+                info_text += f"NLOS: {len(nlos_df)} ({100-los_ratio:.1f}%)\n"
+                info_text += f"UWBT: {uwbt_count}, UWBP: {uwbp_count}\n"
+                info_text += f"Distance traveled: {self._calculate_total_distance(tag_df):.2f} m"
+                
+            else:
+                # 通常の軌跡をDataFrameに変換（後方互換性）
+                tag_df = pd.DataFrame(
+                    [(pos.x, pos.y, pos.z) for pos in trajectory],
+                    columns=["x", "y", "z"]
+                )
+                
+                # 軌跡の線をプロット
+                ax.plot(tag_df.x, tag_df.y, '-', 
+                       color='blue', alpha=0.7, linewidth=2,
+                       label=f"Tag {tag_id} trajectory")
+                
+                # 各点をプロット
+                scatter = ax.scatter(tag_df.x, tag_df.y, 
+                                   c=range(len(tag_df)), cmap='viridis',
+                                   s=20, alpha=0.8, edgecolors='black', linewidth=0.5)
+                
+                plt.colorbar(scatter, ax=ax, label="Time step")
+                
+                # 統計情報を図に追加
+                info_text = f"Total points: {len(trajectory)}\n"
+                info_text += f"Distance traveled: {self._calculate_total_distance(tag_df):.2f} m"
+            
+            # 始点を強調（緑の四角）
+            ax.scatter(tag_df.x.iloc[0], tag_df.y.iloc[0], 
+                     s=200, color='green', marker='s', 
+                     edgecolors='black', linewidth=2,
+                     label=f"Start", zorder=5)
+            
+            # 終点を強調（オレンジの三角）
+            ax.scatter(tag_df.x.iloc[-1], tag_df.y.iloc[-1], 
+                     s=200, color='orange', marker='^', 
+                     edgecolors='black', linewidth=2,
+                     label=f"End", zorder=5)
+            
+            # 軸とタイトルの設定
+            ax.set_xlabel("x (m)")
+            ax.set_ylabel("y (m)")
+            
+            if use_los_info:
+                has_nlos = any(not pos.is_los for pos in trajectory) if hasattr(trajectory[0], 'is_los') else False
+                nlos_count = sum(1 for pos in trajectory if not pos.is_los) if hasattr(trajectory[0], 'is_los') else 0
+                los_count = len(trajectory) - nlos_count
+                if has_nlos:
+                    ax.set_title(f"UWB Position Estimation - Tag {tag_id} (LOS: {los_count}, NLOS: {nlos_count})")
+                else:
+                    ax.set_title(f"UWB Position Estimation - Tag {tag_id} (LOS Only: {los_count} points)")
+            else:
+                ax.set_title(f"UWB Position Estimation - Tag {tag_id} ({len(trajectory)} points)")
+            
+            ax.grid(True, alpha=0.3)
+            
+            # 凡例
+            ax.legend(loc='upper right')
+            
+            # 統計情報をテキストボックスで表示
+            ax.text(0.02, 0.98, info_text, 
+                   transform=ax.transAxes, fontsize=10,
+                   verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            
+            if save:
+                # 出力ファイル名を生成（タグIDを含む）
+                output_path = Path(output_file)
+                tag_output_file = output_path.parent / f"{output_path.stem}_tag_{tag_id}{output_path.suffix}"
+                self.logger.info(f"Tag {tag_id} のプロットを {tag_output_file} に保存します")
+                plt.savefig(src_dir / tag_output_file, bbox_inches='tight', dpi=150)
+            
+            if show:
+                plt.show()
+            
+            plt.close(fig)  # メモリ解放のため図を閉じる
+            
+            self.logger.info(f"Tag {tag_id}: {len(trajectory)} points plotted")
+    
+    def _calculate_total_distance(self, df: pd.DataFrame) -> float:
+        """軌跡の総移動距離を計算"""
+        if len(df) < 2:
+            return 0.0
+        
+        distances = np.sqrt(
+            np.diff(df.x)**2 + 
+            np.diff(df.y)**2 + 
+            np.diff(df.z)**2
+        )
+        return np.sum(distances)
