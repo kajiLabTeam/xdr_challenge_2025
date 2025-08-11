@@ -1,13 +1,9 @@
 from typing import final
 import numpy as np
-from scipy.interpolate import interp1d
-from scipy.linalg import orthogonal_procrustes
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
-from src.services.gpos import GposService
-from src.services.viso import VisoService
 from src.type import Position
 
 
@@ -80,7 +76,7 @@ class VIOLocalizer(DataRecorderProtocol):
         )
 
     @final
-    def _vio_initialize_direction(self, threshold: float = 3.0) -> float | None:
+    def _vio_initialize_direction(self, threshold: float = 6.0) -> float | None:
         """
         VISO の初期方向が設定されていない場合、 プロクラステス分析で初期方向を設定する
         Args:
@@ -107,34 +103,16 @@ class VIOLocalizer(DataRecorderProtocol):
         if distance < threshold:
             return None
 
-        gpos_arr = [GposService.to_position_with_timestamp(d) for d in gpos_data]
-        viso_arr = [VisoService.to_position_with_timestamp(d) for d in viso_data]
-
-        target_is_gpos = len(gpos_arr) < len(viso_arr)
-        base_arr = gpos_arr if target_is_gpos else viso_arr
-        target_arr = viso_arr if target_is_gpos else gpos_arr
-
-        base_timestamps = [d.timestamp for d in base_arr]
-        target_timestamps = [d.timestamp for d in target_arr]
-        position_interpolator = interp1d(
-            target_timestamps,
-            np.array([(d.x, d.y, d.z) for d in target_arr]),
-            axis=0,
-            kind="linear",
-            bounds_error=False,
-            fill_value="extrapolate",
+        # 角度を計算
+        angle_gpos = np.atan2(
+            last_gpos_data["location_y"] - first_gpos_data["location_y"],
+            last_gpos_data["location_x"] - first_gpos_data["location_x"],
         )
-        target_interpolated = position_interpolator(base_timestamps)
-        base_nparr = np.array([(d.x, d.y, d.z) for d in base_arr])
-
-        # 中心を1点目にする
-        base_nparr = base_nparr - base_nparr[0]
-        target_nparr = target_interpolated - target_interpolated[0]
-
-        # プロクラステス分析
-        R, _ = orthogonal_procrustes(base_nparr, target_nparr)
-        theta = np.arctan2(R[1, 0], R[0, 0])
-        angle_rad = theta if target_is_gpos else -theta
+        angle_viso = np.atan2(
+            viso_data[-1]["location_y"] - viso_data[0]["location_y"],
+            viso_data[-1]["location_x"] - viso_data[0]["location_x"],
+        )
+        angle_rad = angle_gpos - angle_viso
         angle_deg = np.degrees(angle_rad)
 
         # 初期方向を設定
