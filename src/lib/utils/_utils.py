@@ -10,7 +10,7 @@ class Utils:
         """
         初期トライアルの設定を取得する。
         Returns:
-            IniTrials: 初期トライアルの設定
+            IniTrial: 初期トライアルの設定
             None: 設定が取得できない場合
         """
         with open(evaal_yaml, "r") as f:
