@@ -52,7 +52,14 @@ class Evaluation:
             direction="nearest",
         )
 
-        diff = estimates_df[["x", "y", "z"]].sub(merged_gt_df[["x", "y", "z"]], axis=0)
+        valid_mask = ~merged_gt_df[["x", "y", "z"]].isna().any(axis=1)
+        filtered_estimates = estimates_df[["x", "y", "z"]][valid_mask]
+        filtered_merged_gt = merged_gt_df[["x", "y", "z"]][valid_mask]
+        if filtered_estimates.empty or filtered_merged_gt.empty:
+            logger.warning("マージ後の推定値と実際の値の対応が見つかりませんでした。")
+            return None
+        diff = filtered_estimates.sub(filtered_merged_gt, axis=0)
+
         rmse = np.sqrt((diff.values**2).mean())
 
         return rmse
