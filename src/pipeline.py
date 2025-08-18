@@ -101,6 +101,5 @@ def pipeline(
     )
 
     # 評価
-    if estimates_df is not None:
-        rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
-        logger.info(f"RMSE: {rmse}")
+    rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
+    logger.info(f"RMSE: {rmse}")
