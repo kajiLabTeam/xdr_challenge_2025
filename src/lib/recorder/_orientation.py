@@ -1,3 +1,4 @@
+from logging import Logger
 from typing import Protocol, final
 from src.lib.safelist._safelist import SafeList
 from src.type import QOrientationWithTimestamp
@@ -14,6 +15,9 @@ class OrientationDataRecorderProtocol(Protocol):
 
 class OrientationDataRecorder:
     orientations: SafeList[QOrientationWithTimestamp] = SafeList()
+
+    def __init__(self, trial_id: str, logger: Logger):
+        pass
 
     @final
     def last_orientation(self) -> QOrientationWithTimestamp:

@@ -1,3 +1,4 @@
+from logging import Logger
 from typing import Protocol, final
 from src.lib.safelist._safelist import SafeList
 from src.type import Position
@@ -7,10 +8,14 @@ class PositionDataRecorderProtocol(Protocol):
     positions: SafeList[Position]
 
     def last_position(self) -> Position:
-        raise NotImplementedError("This method should be implemented by subclasses. PositionDataRecorderProtocol.last_position")
+        raise NotImplementedError(
+            "This method should be implemented by subclasses. PositionDataRecorderProtocol.last_position"
+        )
 
     def __getitem__(self, index: int) -> Position | None:
-        raise NotImplementedError("This method should be implemented by subclasses. PositionDataRecorderProtocol.__getitem__")
+        raise NotImplementedError(
+            "This method should be implemented by subclasses. PositionDataRecorderProtocol.__getitem__"
+        )
 
 
 class PositionDataRecorder:
