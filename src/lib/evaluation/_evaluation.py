@@ -61,7 +61,8 @@ class Evaluation:
     def _check_df_types(df: pd.DataFrame, expected_types: dict[str, type]) -> list[str]:
         mismatched_columns = []
         for column, expected_type in expected_types.items():
-            if column in df.columns and not df[column].dtype == expected_type:
+            if column not in df.columns:
+                mismatched_columns.append(f"{column} (missing)")
+            elif not isinstance(df[column].dtype.type(), expected_type):
                 mismatched_columns.append(column)
-
         return mismatched_columns
