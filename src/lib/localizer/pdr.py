@@ -1,14 +1,9 @@
 from typing import final
 import numpy as np
+from scipy import signal
+from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
 from src.type import Position
-
-window_acc_sec = 1.0  # 加速度の移動平均フィルタのウィンドウサイズ（秒）
-window_gyro_sec = 1.0  # 角速度の移動平均フィルタのウィンドウサイズ（秒）
-step = 0.4  # 歩幅（メートル）
-peak_distance_sec = 0.5  # ピーク検出の最小距離（秒）
-peak_height = 1.0  # ピーク検出の最小高さ
-init_angle = np.deg2rad(80)  # 初期角度（ラジアン）
 
 
 class PDRLocalizer(DataRecorderProtocol):
@@ -39,9 +34,49 @@ class PDRLocalizer(DataRecorderProtocol):
         gyro_df["angle"] = np.cumsum(gyro_df["x"]) / gyro_fs
 
         # 移動平均フィルタ
-        window_acc_frame = int(window_acc_sec * acce_fs)
-        window_gyro_frame = int(window_gyro_sec * gyro_fs)
+        window_acc_frame = int(Params.window_acc_sec() * acce_fs)
+        window_gyro_frame = int(Params.window_gyro_sec() * gyro_fs)
         acce_df["low_norm"] = acce_df["norm"].rolling(window=window_acc_frame).mean()
         gyro_df["low_angle"] = gyro_df["angle"].rolling(window=window_gyro_frame).mean()
+
+        # ピーク検出
+        distance_frame = int(Params.peak_distance_sec() * acce_fs)
+        peaks, _ = signal.find_peaks(
+            acce_df["low_norm"],
+            distance=distance_frame,
+            height=Params.peak_height(),
+        )
+
+        gyro_timestamps = np.asarray(gyro_df["app_timestamp"].values)
+        # FIX ME
+        track: list[Position] = [self.positions[0]]
+
+        for peak in peaks:
+            time = acce_df["app_timestamp"][peak]
+            idx = np.searchsorted(gyro_timestamps, time)
+            if idx == 0:
+                gyro_i = gyro_df.index[0]
+            elif idx == len(gyro_timestamps):
+                gyro_i = gyro_df.index[-1]
+            else:
+                before = gyro_timestamps[idx - 1]
+                after = gyro_timestamps[idx]
+                if abs(time - before) <= abs(time - after):
+                    gyro_i = gyro_df.index[idx - 1]
+                else:
+                    gyro_i = gyro_df.index[idx]
+
+            x = (
+                Params.step()
+                * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
+                + track[-1][0]
+            )
+            y = (
+                Params.step()
+                * np.sin(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
+                + track[-1][1]
+            )
+
+            track.append(Position(x, y, 0))
 
         return Position(0, 0, 0)
