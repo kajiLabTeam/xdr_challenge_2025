@@ -1,9 +1,11 @@
+from functools import cached_property
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
 from src.lib.recorder._recorder import DataRecorderProtocol
+from src.lib.utils._utils import Utils
 
 
 class Visualizer(DataRecorderProtocol):
@@ -19,6 +21,7 @@ class Visualizer(DataRecorderProtocol):
         map_ppm: float = 100,
         show: bool = True,
         save: bool = True,
+        ground_truth: bool = True,
     ) -> None:
         """
         推定結果をプロットする
@@ -50,7 +53,19 @@ class Visualizer(DataRecorderProtocol):
 
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
-        scatter = ax.scatter(df.x, df.y, s=3, label="location (ground truth)")
+        scatter = ax.scatter(df.x, df.y, s=3, label="location (estimated)")
+
+        if ground_truth:
+            ground_truth_df = self.groundtruth
+            ax.scatter(
+                ground_truth_df["x"],
+                ground_truth_df["y"],
+                s=3,
+                c="black",
+                alpha=0.2,
+                label="location (ground truth)",
+            )
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
 
@@ -63,3 +78,15 @@ class Visualizer(DataRecorderProtocol):
         if show:
             self.logger.info("プロットを表示します")
             plt.show()
+
+    @cached_property
+    def groundtruth(self) -> pd.DataFrame:
+        """
+        トライアルの ground truth を取得する
+        """
+        src_dir = Path().resolve()
+        initrial = Utils.get_initrial(self.trial_id, src_dir / "src/api/evaalapi.yaml")
+        groundtruth_file = src_dir / "src/api/ground_truth" / initrial.groundtruthfile
+        df = pd.read_csv(groundtruth_file)
+
+        return df

@@ -1,14 +1,20 @@
 from typing import final
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.recorder import DataRecorder
-from src.lib.visualizer._visualizer import Visualizer
+from src.lib.visualizer import Visualizer
 from src.type import Position
 from .pdr import PDRLocalizer
 from .vio import VIOLocalizer
 from .uwb import UWBLocalizer
 
 
-class Localizer(DataRecorder, Visualizer, PDRLocalizer, VIOLocalizer, UWBLocalizer):
+class Localizer(
+    DataRecorder,
+    Visualizer,
+    PDRLocalizer,
+    VIOLocalizer,
+    UWBLocalizer,
+):
     """
     位置推定のためのクラス
     """
@@ -23,4 +29,4 @@ class Localizer(DataRecorder, Visualizer, PDRLocalizer, VIOLocalizer, UWBLocaliz
         last_pos = self.last_position()
 
         # 推定結果を保存
-        self.positions.append(Position(last_pos.x + 1, last_pos.y, last_pos.z))
+        self.positions.append(Position(last_pos.x + 0.01, last_pos.y, last_pos.z))
