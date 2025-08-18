@@ -24,9 +24,10 @@ class Localizer(
     def estimate(self) -> None:
         pdr_pos = self.estimate_pdr()
         # uwb_pos = self.estimate_uwb()
-        # viso_pos = self.estimate_vio()
+        vis_pos = self.estimate_vio()
+        # viso_orientations = self.estimate_vio_orientations()
 
         last_pos = self.last_position()
 
         # 推定結果を保存
-        self.positions.append(Position(last_pos.x + 0.01, last_pos.y, last_pos.z))
+        self.positions.append(vis_pos if vis_pos else Position(0, 0, 0))

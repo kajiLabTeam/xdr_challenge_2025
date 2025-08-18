@@ -142,7 +142,7 @@ class ImmediateRequester(BaseRequester):
 
         if self.line is None:
             self.state = "finished"
-            self.logger.info(f"トライアルが終了しています。1({self.state})")
+            self.logger.info(f"トライアルが終了しています。({self.state})")
             return TrialState(
                 trialts=self.trial_timestamp,
                 rem=self._get_rem(),

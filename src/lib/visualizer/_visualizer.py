@@ -20,6 +20,8 @@ class Visualizer(DataRecorderProtocol):
         map_ppm: float = 100,
         show: bool = True,
         save: bool = True,
+        maxwait: float | None = None,
+        gpos: bool = False,
         ground_truth_df: pd.DataFrame | None = None,
     ) -> None:
         """
@@ -52,7 +54,19 @@ class Visualizer(DataRecorderProtocol):
 
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
-        scatter = ax.scatter(df.x, df.y, s=3, label="location (estimated)")
+        c = df.index * maxwait if maxwait else df.index
+        scatter = ax.scatter(df.x, df.y, s=3, c=c, label="location (estimated)")
+        if gpos:
+            gpos_data = self.gpos_datarecorder.data
+            gpos_df = pd.DataFrame(gpos_data)
+            ax.scatter(
+                gpos_df["location_x"],
+                gpos_df["location_y"],
+                s=3,
+                c="red",
+                alpha=0.2,
+                label="location (GPOS)",
+            )
 
         if ground_truth_df is not None:
             ax.scatter(
