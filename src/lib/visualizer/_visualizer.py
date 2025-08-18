@@ -1,3 +1,4 @@
+from functools import cached_property
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -78,15 +79,14 @@ class Visualizer(DataRecorderProtocol):
             self.logger.info("プロットを表示します")
             plt.show()
 
-    @property
+    @cached_property
     def groundtruth(self) -> pd.DataFrame:
         """
         トライアルの ground truth を取得する
         """
         src_dir = Path().resolve()
         initrial = Utils.get_initrial(self.trial_id, src_dir / "src/api/evaalapi.yaml")
-        self.groundtruth_file = (
-            src_dir / "src/api/ground_truth" / initrial.groundtruthfile
-        )
-        df = pd.read_csv(self.groundtruth_file)
+        groundtruth_file = src_dir / "src/api/ground_truth" / initrial.groundtruthfile
+        df = pd.read_csv(groundtruth_file)
+
         return df
