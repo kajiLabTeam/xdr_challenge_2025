@@ -1,14 +1,6 @@
 demo:
-  datafile: 1.txt
-  commsep: "%"
-  sepch: ";"
-  V: 3
-  S: 15
-  inipos: 41.368;-10.047;0.935
-  reloadable: True
-
-demo-short:
-  datafile: 1_short.txt
+  datafile: 001.txt
+  groundtruthfile: 001.csv
   commsep: "%"
   sepch: ";"
   V: 3

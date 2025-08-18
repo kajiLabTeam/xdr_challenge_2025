@@ -1,11 +1,10 @@
 from time import time
 from typing import Literal, final
-import pydantic
-import yaml
 from pathlib import Path
 from logging import Logger
 from urllib.parse import urljoin
-from src.type import Estimate, IniTrial, IniTrials, Position, SensorData, TrialState
+from src.lib.utils._utils import Utils
+from src.type import Estimate, Position, SensorData, TrialState
 import pandas as pd
 from ._base import BaseRequester
 
@@ -24,7 +23,7 @@ class ImmediateRequester(BaseRequester):
         src_dir = Path().resolve()
         self.server_url = urljoin(server, f"{trial_id}/")
         self.logger = logger
-        self.initrial = self._get_initrial(trial_id, src_dir / "src/api/evaalapi.yaml")
+        self.initrial = Utils.get_initrial(trial_id, src_dir / "src/api/evaalapi.yaml")
         self.dataf = open(src_dir / "src/api/trials" / self.initrial.datafile, "r")
 
     def send_reload_req(self, keeplog: bool = False) -> TrialState | None:
@@ -143,7 +142,7 @@ class ImmediateRequester(BaseRequester):
 
         if self.line is None:
             self.state = "finished"
-            self.logger.info(f"トライアルが終了しています。1({self.state})")
+            self.logger.info(f"トライアルが終了しています。({self.state})")
             return TrialState(
                 trialts=self.trial_timestamp,
                 rem=self._get_rem(),
@@ -201,7 +200,7 @@ class ImmediateRequester(BaseRequester):
             self.h = horizon
             self.trial_timestamp += horizon
 
-        self.logger.info("センサーデータを取得しました")
+        self.logger.debug("センサーデータを取得しました")
         return SensorData(response_data)
 
     def send_estimates_req(self) -> pd.DataFrame | None:
@@ -231,30 +230,6 @@ class ImmediateRequester(BaseRequester):
             return -1.0
 
         return self.p + self.initrial.V * self.h + self.s - time()
-
-    @final
-    def _get_initrial(self, trial_id: str, evaal_yaml: str | Path) -> IniTrial:
-        """
-        初期トライアルの設定を取得する。
-        Returns:
-            IniTrials: 初期トライアルの設定
-            None: 設定が取得できない場合
-        """
-        with open(evaal_yaml, "r") as f:
-            initrials_str = yaml.safe_load(f)
-            try:
-                # TypeAdapterを使って、辞書全体を検証する
-                adapter = pydantic.TypeAdapter(IniTrials)
-                initrials = adapter.validate_python(initrials_str)
-                return initrials[trial_id]
-
-            except pydantic.ValidationError as e:
-                raise ValueError("初期トライアルの設定が不正です: {e}")
-
-            except KeyError:
-                raise ValueError(
-                    f"トライアルID '{trial_id}' が初期トライアルの設定に存在しません"
-                )
 
     @final
     def _get_timestamp(self, line: str) -> float:

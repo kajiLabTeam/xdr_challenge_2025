@@ -13,6 +13,7 @@ class VisoData(TypedDict):
     quat_x: float
     quat_y: float
     quat_z: float
+    quat_w: float
 
 
 class VisoDataRecorder(BaseDataRecorder[VisoData]):
@@ -26,9 +27,10 @@ class VisoDataRecorder(BaseDataRecorder[VisoData]):
         "quat_x": float,
         "quat_y": float,
         "quat_z": float,
+        "quat_w": float,
     }
 
-    def last_applended_orientations(self) -> SafeList[QOrientationWithTimestamp]:
+    def last_appended_orientations(self) -> SafeList[QOrientationWithTimestamp]:
         """
         最後に追加されたクォータニオンデータを取得するメソッド
         Returns:

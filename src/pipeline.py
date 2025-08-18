@@ -3,6 +3,8 @@ from pathlib import Path
 import time
 from src.lib import Localizer, Requester, RequesterError
 from src.lib import wait_if_not_immediate
+from src.lib.evaluation._evaluation import Evaluation
+from src.lib.groundtruth._groundtruth import GroundTruth
 from src.lib.requester import BaseRequester, ImmediateRequester
 from src.type import SensorData, TrialState
 
@@ -67,22 +69,28 @@ def pipeline(
             if isinstance(e, RequesterError):
                 logger.warning("データの受信に失敗しました。再試行しますか？")
             else:
-                logger.error(f"予期しないエラーが発生しました。 {e}")
+                logger.error(f"予期しないエラーが発生しました。 {e}", exc_info=True)
 
             is_continue = (
                 input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
             )
             if is_continue == "no":
-                logger.error("予期しないエラー", e)
+                logger.error(f"予期しないエラー: {e}", exc_info=True)
                 break
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
 
-    # トライアルの状態を取得
+    # 推定結果を取得
     estimates_df = requester.send_estimates_req()
-    if estimates_df is not None:
-        estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+    if estimates_df is None:
+        logger.error("推定結果の取得に失敗しました")
+        return
+
+    estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
     
+    # Ground Truth を取得
+    ground_truth_df = GroundTruth.groundtruth(trial_id)
+
     # 生の測定値をCSVファイルに保存（重み付き平均なし）
     if hasattr(localizer, 'get_raw_measurements'):
         raw_measurements = localizer.get_raw_measurements()
@@ -140,4 +148,10 @@ def pipeline(
         output_dir / f"{trial_id}_{datetime}_map.png",
         show=show_plot_map,
         save=not no_save_plot_map,
+        gpos=True,
+        ground_truth_df=ground_truth_df,
     )
+
+    # 評価
+    rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
+    logger.info(f"RMSE: {rmse}")

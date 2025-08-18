@@ -54,6 +54,16 @@ class BaseDataRecorder[DataType]:
         """
         return self.__last_appended_data.copy()
 
+    @property
+    def first_data(self) -> DataType | None:
+        """
+        最初のデータを取得します。
+        """
+        if not self.data:
+            return None
+        return self.data[0]
+
+
     @final
     def append(self, sensor_type: SensorType, data: list[str]) -> None:
         """
@@ -97,7 +107,7 @@ class BaseDataRecorder[DataType]:
         """
         if len(data) != len(self.columns):
             msg = (
-                f"データの長さがカラム数と一致しません。"
+                f"[{self.key}] データの長さがカラム数と一致しません。"
                 f"期待されるカラム数: {len(self.columns)}, 実際のデータ長: {len(data)}"
             )
             self.logger.error(msg)

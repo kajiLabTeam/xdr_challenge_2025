@@ -33,6 +33,31 @@ class Position(NamedTuple):
         return f"{self.x},{self.y},{self.z}"
 
 
+class PositionWithTimestamp(NamedTuple):
+    """
+    位置を表すデータ構造にタイムスタンプを追加したもの
+    """
+
+    timestamp: float
+    x: float
+    y: float
+    z: float
+
+    def __repr__(self) -> str:
+        return f"({self.x},{self.y},{self.z})"
+
+    def __str__(self) -> str:
+        return f"{self.x},{self.y},{self.z}"
+
+    def to_position(self) -> Position:
+        """
+        タイムスタンプを除いた Position オブジェクトを返す
+        Returns:
+            Position: タイムスタンプを除いた Position オブジェクト
+        """
+        return Position(self.x, self.y, self.z)
+
+
 class QOrientation(NamedTuple):
     """
     姿勢を表すデータ構造(クォータニオン形式)
@@ -59,7 +84,7 @@ class QOrientation(NamedTuple):
         euler = r.as_euler("xyz", degrees=False)
         roll, pitch, yaw = euler
 
-        return roll, pitch, yaw
+        return float(roll), float(pitch), float(yaw)
 
 
 class QOrientationWithTimestamp(NamedTuple):
@@ -89,7 +114,7 @@ class QOrientationWithTimestamp(NamedTuple):
         euler = r.as_euler("xyz", degrees=False)
         roll, pitch, yaw = euler
 
-        return roll, pitch, yaw
+        return float(roll), float(pitch), float(yaw)
 
 
 class _TrialState(TypedDict):
@@ -295,6 +320,7 @@ class SensorData:
 
 class IniTrial(pydantic.BaseModel):
     datafile: str
+    groundtruthfile: str
     commsep: str
     sepch: str
     V: int

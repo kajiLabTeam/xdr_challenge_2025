@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
+from src.lib.groundtruth._groundtruth import GroundTruth
 from src.lib.recorder._recorder import DataRecorderProtocol
 
 
@@ -19,6 +20,9 @@ class Visualizer(DataRecorderProtocol):
         map_ppm: float = 100,
         show: bool = True,
         save: bool = True,
+        maxwait: float | None = None,
+        gpos: bool = False,
+        ground_truth_df: pd.DataFrame | None = None,
     ) -> None:
         """
         推定結果をプロットする
@@ -51,27 +55,30 @@ class Visualizer(DataRecorderProtocol):
         # メインプロット（最終推定結果）
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
-        
-        # 時間軸をカラーマップで表現
-        scatter = ax.scatter(df.x, df.y, 
-                           c=range(len(df)), cmap='viridis',
-                           s=10, alpha=0.8, 
-                           edgecolors='black', linewidth=0.3,
-                           label="Final estimation")
-        
-        # 軌跡の線を追加
-        ax.plot(df.x, df.y, '-', color='gray', alpha=0.3, linewidth=1)
-        
-        # 始点と終点を強調
-        ax.scatter(df.x.iloc[0], df.y.iloc[0], 
-                 s=150, color='green', marker='s', 
-                 edgecolors='black', linewidth=2,
-                 label="Start", zorder=5)
-        ax.scatter(df.x.iloc[-1], df.y.iloc[-1], 
-                 s=150, color='red', marker='^', 
-                 edgecolors='black', linewidth=2,
-                 label="End", zorder=5)
-        
+        c = df.index * maxwait if maxwait else df.index
+        scatter = ax.scatter(df.x, df.y, s=3, c=c, label="location (estimated)")
+        if gpos:
+            gpos_data = self.gpos_datarecorder.data
+            gpos_df = pd.DataFrame(gpos_data)
+            ax.scatter(
+                gpos_df["location_x"],
+                gpos_df["location_y"],
+                s=3,
+                c="red",
+                alpha=0.2,
+                label="location (GPOS)",
+            )
+
+        if ground_truth_df is not None:
+            ax.scatter(
+                ground_truth_df["x"],
+                ground_truth_df["y"],
+                s=3,
+                c="black",
+                alpha=0.2,
+                label="location (ground truth)",
+            )
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
         ax.set_title(f"UWB Position Estimation - Final Result ({len(df)} points)")
