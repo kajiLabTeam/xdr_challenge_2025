@@ -3,6 +3,8 @@ from pathlib import Path
 import time
 from src.lib import Localizer, Requester, RequesterError
 from src.lib import wait_if_not_immediate
+from src.lib.evaluation._evaluation import Evaluation
+from src.lib.groundtruth._groundtruth import GroundTruth
 from src.lib.requester import BaseRequester, ImmediateRequester
 from src.type import SensorData, TrialState
 
@@ -78,10 +80,16 @@ def pipeline(
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
 
-    # トライアルの状態を取得
+    # 推定結果を取得
     estimates_df = requester.send_estimates_req()
-    if estimates_df is not None:
-        estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+    if estimates_df is None:
+        logger.error("推定結果の取得に失敗しました")
+        return
+
+    estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+
+    # Ground Truth を取得
+    ground_truth_df = GroundTruth.groundtruth(trial_id)
 
     # 推定結果をマップにプロット
     localizer.plot_map(
@@ -89,4 +97,10 @@ def pipeline(
         output_dir / f"{trial_id}_{datetime}_map.png",
         show=show_plot_map,
         save=not no_save_plot_map,
+        ground_truth_df=ground_truth_df,
     )
+
+    # 評価
+    if estimates_df is not None:
+        rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
+        logger.info(f"RMSE: {rmse}")
