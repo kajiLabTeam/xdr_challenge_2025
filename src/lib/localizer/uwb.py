@@ -1,7 +1,8 @@
-from typing import final, Dict, List, Tuple, Optional, NamedTuple
+from typing import final, Dict, List, Tuple, Optional, NamedTuple, Any
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import logging
+from bisect import bisect_left
 
 
 from src.lib.recorder import DataRecorderProtocol
@@ -39,7 +40,7 @@ class UWBLocalizer(DataRecorderProtocol):
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
     
-    def __init__(self) -> None:
+    def __init__(self, trial_id: str = "", logger: Optional[Any] = None) -> None:
         super().__init__()
         self.tag_trajectories: Dict[str, List[Position]] = {}  # タグごとの推定軌跡（互換性のため残す）
         self.tag_trajectories_with_los: Dict[str, List[PositionWithLOS]] = {}  # LOS情報付き軌跡
@@ -49,9 +50,162 @@ class UWBLocalizer(DataRecorderProtocol):
         self.current_tag_positions: Dict[str, Position] = {}  # 各タグの現在位置
         self.raw_measurements: Dict[str, List[PositionWithLOS]] = {}  # 生の測定値（重み付き平均なし）
         self.uwbt_only_measurements: Dict[str, List[PositionWithLOS]] = {}  # UWBTのみの測定値
+        self.time_window_ms = 100.0  # 時間窓（ミリ秒）
+        self.max_time_diff_ms = 500.0  # 最大許容時間差（ミリ秒）
     
-    def get_tag_pose(self, tag_id: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """指定されたタグの最新の位置と姿勢を取得"""
+    def find_closest_gpos_by_timestamp(self, target_timestamp: float, tag_id: str) -> Optional[Any]:
+        """指定タイムスタンプに最も近いGPOSデータを検索"""
+        gpos_data = self.gpos_datarecorder.data
+        
+        # タグIDでフィルタリング
+        tag_gpos_data = [d for d in gpos_data if d["object_id"] == tag_id]
+        
+        if not tag_gpos_data:
+            return None
+        
+        # タイムスタンプでソート（されていると仮定）
+        timestamps = [d["sensor_timestamp"] for d in tag_gpos_data]
+        
+        # バイナリサーチで最も近いインデックスを探す
+        idx = bisect_left(timestamps, target_timestamp)
+        
+        # 最も近いデータを選択
+        if idx == 0:
+            closest_data = tag_gpos_data[0]
+        elif idx == len(tag_gpos_data):
+            closest_data = tag_gpos_data[-1]
+        else:
+            # 前後のデータを比較して近い方を選択
+            before = tag_gpos_data[idx - 1]
+            after = tag_gpos_data[idx]
+            if abs(before["sensor_timestamp"] - target_timestamp) < abs(after["sensor_timestamp"] - target_timestamp):
+                closest_data = before
+            else:
+                closest_data = after
+        
+        # 時間差をチェック（ミリ秒に変換）
+        time_diff_ms = abs(closest_data["sensor_timestamp"] - target_timestamp) * 1000
+        
+        # 時間窓を超える場合はNoneを返す
+        if time_diff_ms > self.max_time_diff_ms:
+            logger.debug(f"GPOS data too old for tag {tag_id}: time_diff={time_diff_ms:.1f}ms")
+            return None
+        
+        return closest_data
+    
+    def interpolate_gpos_data(self, before: Any, after: Any, target_timestamp: float) -> Tuple[np.ndarray, np.ndarray]:
+        """2つのGPOSデータ間で補間を行う"""
+        # タイムスタンプの比率を計算
+        t_before = before["sensor_timestamp"]
+        t_after = after["sensor_timestamp"]
+        alpha = (target_timestamp - t_before) / (t_after - t_before)
+        
+        # 位置の線形補間
+        loc_before = np.array([before["location_x"], before["location_y"], before["location_z"]])
+        loc_after = np.array([after["location_x"], after["location_y"], after["location_z"]])
+        location = loc_before + alpha * (loc_after - loc_before)
+        
+        # クォータニオンのSLERP（球面線形補間）- 簡易実装
+        quat_before = np.array([before["quat_x"], before["quat_y"], before["quat_z"], before["quat_w"]])
+        quat_after = np.array([after["quat_x"], after["quat_y"], after["quat_z"], after["quat_w"]])
+        
+        # 内積を計算
+        dot = np.dot(quat_before, quat_after)
+        
+        # 負の場合は符号を反転
+        if dot < 0:
+            quat_after = -quat_after
+            dot = -dot
+        
+        # ほぼ同じクォータニオンの場合は線形補間
+        if dot > 0.9995:
+            quat = quat_before + alpha * (quat_after - quat_before)
+            quat = quat / np.linalg.norm(quat)
+        else:
+            # SLERPを計算
+            theta_0 = np.arccos(np.clip(dot, -1.0, 1.0))
+            theta = theta_0 * alpha
+            quat_2 = quat_after - quat_before * dot
+            quat_2 = quat_2 / np.linalg.norm(quat_2)
+            quat = quat_before * np.cos(theta) + quat_2 * np.sin(theta)
+        
+        return location, quat
+    
+    def get_synchronized_tag_pose(self, tag_id: str, uwb_timestamp: float) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """UWBタイムスタンプに対応するタグ位置を取得（補間機能付き）"""
+        gpos_data = self.gpos_datarecorder.data
+        
+        # タグIDでフィルタリング
+        tag_gpos_data = [d for d in gpos_data if d["object_id"] == tag_id]
+        
+        if not tag_gpos_data:
+            return None, None
+        
+        # タイムスタンプでソート（されていると仮定）
+        timestamps = [d["sensor_timestamp"] for d in tag_gpos_data]
+        
+        # バイナリサーチでインデックスを探す
+        idx = bisect_left(timestamps, uwb_timestamp)
+        
+        # 補間処理
+        if idx == 0:
+            # 最初のデータより前の場合
+            closest_data = tag_gpos_data[0]
+            time_diff_ms = abs(closest_data["sensor_timestamp"] - uwb_timestamp) * 1000
+            if time_diff_ms > self.max_time_diff_ms:
+                logger.debug(f"GPOS data too old for tag {tag_id}: time_diff={time_diff_ms:.1f}ms")
+                return None, None
+            # 補間せずに最初のデータを使用
+            location = np.array([closest_data["location_x"], closest_data["location_y"], closest_data["location_z"]])
+            quat = np.array([closest_data["quat_x"], closest_data["quat_y"], closest_data["quat_z"], closest_data["quat_w"]])
+            quat = quat / np.linalg.norm(quat)
+            return location, quat
+            
+        elif idx == len(tag_gpos_data):
+            # 最後のデータより後の場合
+            closest_data = tag_gpos_data[-1]
+            time_diff_ms = abs(closest_data["sensor_timestamp"] - uwb_timestamp) * 1000
+            if time_diff_ms > self.max_time_diff_ms:
+                logger.debug(f"GPOS data too old for tag {tag_id}: time_diff={time_diff_ms:.1f}ms")
+                return None, None
+            # 補間せずに最後のデータを使用
+            location = np.array([closest_data["location_x"], closest_data["location_y"], closest_data["location_z"]])
+            quat = np.array([closest_data["quat_x"], closest_data["quat_y"], closest_data["quat_z"], closest_data["quat_w"]])
+            quat = quat / np.linalg.norm(quat)
+            return location, quat
+            
+        else:
+            # 2つのデータの間にある場合
+            before = tag_gpos_data[idx - 1]
+            after = tag_gpos_data[idx]
+            
+            # 時間窓チェック
+            time_diff_before = abs(before["sensor_timestamp"] - uwb_timestamp) * 1000
+            time_diff_after = abs(after["sensor_timestamp"] - uwb_timestamp) * 1000
+            
+            # どちらかが時間窓内であれば補間を実行
+            if time_diff_before <= self.time_window_ms or time_diff_after <= self.time_window_ms:
+                # 補間を実行
+                location, quat = self.interpolate_gpos_data(before, after, uwb_timestamp)
+                return location, quat
+            elif time_diff_before <= self.max_time_diff_ms:
+                # 前のデータを使用
+                location = np.array([before["location_x"], before["location_y"], before["location_z"]])
+                quat = np.array([before["quat_x"], before["quat_y"], before["quat_z"], before["quat_w"]])
+                quat = quat / np.linalg.norm(quat)
+                return location, quat
+            elif time_diff_after <= self.max_time_diff_ms:
+                # 後のデータを使用
+                location = np.array([after["location_x"], after["location_y"], after["location_z"]])
+                quat = np.array([after["quat_x"], after["quat_y"], after["quat_z"], after["quat_w"]])
+                quat = quat / np.linalg.norm(quat)
+                return location, quat
+            else:
+                logger.debug(f"GPOS data too old for tag {tag_id}: min_time_diff={min(time_diff_before, time_diff_after):.1f}ms")
+                return None, None
+    
+    def get_tag_pose_latest(self, tag_id: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """指定されたタグの最新の位置と姿勢を取得（フォールバック用）"""
         # GPOSデータから最新のタグ位置を取得
         gpos_data = self.gpos_datarecorder.data
         
@@ -71,17 +225,20 @@ class UWBLocalizer(DataRecorderProtocol):
             latest_gpos["location_z"]
         ])
         
-        # クォータニオン（w成分を計算）
-        quat_xyz = np.array([
+        # クォータニオン
+        quat = np.array([
             latest_gpos["quat_x"],
             latest_gpos["quat_y"],
-            latest_gpos["quat_z"]
+            latest_gpos["quat_z"],
+            latest_gpos["quat_w"]
         ])
-        quat_w = np.sqrt(max(0.0, 1.0 - np.sum(quat_xyz**2)))
-        quat = np.concatenate([quat_xyz, [quat_w]])
         quat = quat / np.linalg.norm(quat)  # 正規化
         
         return location, quat
+    
+    def get_tag_pose(self, tag_id: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """指定されたタグの最新の位置と姿勢を取得（互換性のため残す）"""
+        return self.get_tag_pose_latest(tag_id)
     
     def estimate_from_uwbt(self, tag_id: str) -> List[TagEstimate]:
         """UWBTデータから指定タグの位置を推定"""
@@ -101,7 +258,9 @@ class UWBLocalizer(DataRecorderProtocol):
             if not is_los:
                 logger.debug(f"UWBT - Tag {tag_id}: NLOS detected (value={nlos_value:.2f})")
             
-            tag_loc, tag_quat = self.get_tag_pose(tag_id)
+            # タイムスタンプベースでタグ位置を取得
+            uwb_timestamp = data["sensor_timestamp"]
+            tag_loc, tag_quat = self.get_synchronized_tag_pose(tag_id, uwb_timestamp)
             if tag_loc is None or tag_quat is None:
                 continue
             
@@ -153,7 +312,9 @@ class UWBLocalizer(DataRecorderProtocol):
             if data["tag_id"] != tag_id:
                 continue
             
-            tag_loc, tag_quat = self.get_tag_pose(tag_id)
+            # タイムスタンプベースでタグ位置を取得
+            uwb_timestamp = data["sensor_timestamp"]
+            tag_loc, tag_quat = self.get_synchronized_tag_pose(tag_id, uwb_timestamp)
             if tag_loc is None or tag_quat is None:
                 continue
             
