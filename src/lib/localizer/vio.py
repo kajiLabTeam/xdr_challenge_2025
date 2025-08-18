@@ -38,7 +38,7 @@ class VIOLocalizer(DataRecorderProtocol):
         Returns:
             SafeList[QOrientationWithTimestamp]: VIO の姿勢データ
         """
-        orientations = self.viso_datarecorder.last_applended_orientations()
+        orientations = self.viso_datarecorder.last_appended_orientations()
         self._viso_orientations.extend(*orientations)
 
         return orientations
