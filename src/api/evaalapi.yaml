@@ -1,5 +1,6 @@
 demo:
   datafile: 001.txt
+  groundtruthfile: 001.csv
   commsep: "%"
   sepch: ";"
   V: 3

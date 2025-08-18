@@ -121,7 +121,7 @@ class Requester(BaseRequester):
         res = self._get("nextdata", **params)
 
         if res.status_code == 200:
-            self.logger.info("センサーデータを取得しました")
+            self.logger.debug("センサーデータを取得しました")
             try:
                 return SensorData(res.text)
             except ValueError as e:

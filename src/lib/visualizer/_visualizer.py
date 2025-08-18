@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
+from src.lib.groundtruth._groundtruth import GroundTruth
 from src.lib.recorder._recorder import DataRecorderProtocol
 
 
@@ -21,6 +22,7 @@ class Visualizer(DataRecorderProtocol):
         save: bool = True,
         maxwait: float | None = None,
         gpos: bool = False,
+        ground_truth_df: pd.DataFrame | None = None,
     ) -> None:
         """
         推定結果をプロットする
@@ -64,6 +66,16 @@ class Visualizer(DataRecorderProtocol):
                 c="red",
                 alpha=0.2,
                 label="location (GPOS)",
+            )
+
+        if ground_truth_df is not None:
+            ax.scatter(
+                ground_truth_df["x"],
+                ground_truth_df["y"],
+                s=3,
+                c="black",
+                alpha=0.2,
+                label="location (ground truth)",
             )
 
         ax.set_xlabel("x (m)")

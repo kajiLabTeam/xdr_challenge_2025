@@ -320,6 +320,7 @@ class SensorData:
 
 class IniTrial(pydantic.BaseModel):
     datafile: str
+    groundtruthfile: str
     commsep: str
     sepch: str
     V: int
