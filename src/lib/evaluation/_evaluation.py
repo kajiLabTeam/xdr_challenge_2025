@@ -44,16 +44,18 @@ class Evaluation:
             )
             return None
 
+        sorted_estimates_df = estimates_df.sort_values("pts")
+        sorted_ground_truth_df = ground_truth_df.sort_values("timestamp")
         merged_gt_df = pd.merge_asof(
-            estimates_df[["pts"]],
-            ground_truth_df,
+            sorted_estimates_df[["pts"]],
+            sorted_ground_truth_df,
             left_on="pts",
             right_on="timestamp",
             direction="nearest",
         )
 
         valid_mask = ~merged_gt_df[["x", "y", "z"]].isna().any(axis=1)
-        filtered_estimates = estimates_df[["x", "y", "z"]][valid_mask]
+        filtered_estimates = sorted_estimates_df[["x", "y", "z"]][valid_mask]
         filtered_merged_gt = merged_gt_df[["x", "y", "z"]][valid_mask]
         if filtered_estimates.empty or filtered_merged_gt.empty:
             logger.warning("マージ後の推定値と実際の値の対応が見つかりませんでした。")
