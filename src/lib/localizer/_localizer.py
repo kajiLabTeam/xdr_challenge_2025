@@ -22,7 +22,7 @@ class Localizer(
     @final
     @require_attr_appended("positions", 1)
     def estimate(self) -> None:
-        # pdr_pos = self.estimate_pdr()
+        pdr_pos = self.estimate_pdr()
         # uwb_pos = self.estimate_uwb()
         # viso_pos = self.estimate_vio()
 

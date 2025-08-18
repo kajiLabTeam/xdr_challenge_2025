@@ -21,3 +21,9 @@ class GyroDataRecorder(BaseDataRecorder[GyroData]):
         "gyr_z": float,
         "accuracy": float,
     }
+
+    @property
+    def fs(self) -> float:
+        return len(self.data) / (
+            self.data[-1]["app_timestamp"] - self.data[0]["app_timestamp"]
+        )

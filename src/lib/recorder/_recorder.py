@@ -45,7 +45,7 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
             trial_id (str): トライアルID
             logger (Logger): ロガー
         """
-        super().__init__(trial_id, logger)
+        super().__init__()
 
         self.trial_id = trial_id
         self.logger = logger
