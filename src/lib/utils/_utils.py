@@ -22,7 +22,7 @@ class Utils:
                 return initrials[trial_id]
 
             except pydantic.ValidationError as e:
-                raise ValueError("初期トライアルの設定が不正です: {e}")
+                raise ValueError(f"初期トライアルの設定が不正です: {e}")
 
             except KeyError:
                 raise ValueError(
