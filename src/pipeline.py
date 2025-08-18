@@ -75,7 +75,7 @@ def pipeline(
                 input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
             )
             if is_continue == "no":
-                logger.error("予期しないエラー", e, exc_info=True)
+                logger.error(f"予期しないエラー: {e}", exc_info=True)
                 break
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
