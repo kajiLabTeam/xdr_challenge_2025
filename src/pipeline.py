@@ -91,7 +91,7 @@ def pipeline(
     # Ground Truth を取得
     ground_truth_df = GroundTruth.groundtruth(trial_id)
 
-    # 推定結果をマップにプロット（4色表示）
+    # 推定結果をマップにプロット
     localizer.plot_map(
         "map/miraikan_5.bmp",
         output_dir / f"{trial_id}_{datetime}_map.png",
