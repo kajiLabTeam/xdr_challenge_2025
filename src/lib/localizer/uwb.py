@@ -1,14 +1,12 @@
+from logging import Logger
 from typing import final, Dict, List, Tuple, Optional, NamedTuple, Any
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-import logging
 from bisect import bisect_left
 
 
 from src.lib.recorder import DataRecorderProtocol
 from src.type import Position
-
-logger = logging.getLogger(__name__)
 
 
 class TagEstimate:
@@ -51,7 +49,7 @@ class UWBLocalizer(DataRecorderProtocol):
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
 
-    def __init__(self, trial_id: str = "", logger: Optional[Any] = None) -> None:
+    def __init__(self, trial_id: str, logger: Logger):
         super().__init__()
         self.tag_trajectories: Dict[str, List[Position]] = (
             {}
@@ -144,7 +142,7 @@ class UWBLocalizer(DataRecorderProtocol):
             closest_data = tag_gpos_data[0]
             time_diff_ms = abs(closest_data["sensor_timestamp"] - uwb_timestamp) * 1000
             if time_diff_ms > self.max_time_diff_ms:
-                logger.debug(
+                self.logger.debug(
                     f"GPOS data too old for tag {tag_id}: time_diff={time_diff_ms:.1f}ms"
                 )
                 return None, None
@@ -172,7 +170,7 @@ class UWBLocalizer(DataRecorderProtocol):
             closest_data = tag_gpos_data[-1]
             time_diff_ms = abs(closest_data["sensor_timestamp"] - uwb_timestamp) * 1000
             if time_diff_ms > self.max_time_diff_ms:
-                logger.debug(
+                self.logger.debug(
                     f"GPOS data too old for tag {tag_id}: time_diff={time_diff_ms:.1f}ms"
                 )
                 return None, None
@@ -240,7 +238,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 quat = quat / np.linalg.norm(quat)
                 return location, quat
             else:
-                logger.debug(
+                self.logger.debug(
                     f"GPOS data too old for tag {tag_id}: min_time_diff={min(time_diff_before, time_diff_after):.1f}ms"
                 )
                 return None, None
@@ -261,7 +259,7 @@ class UWBLocalizer(DataRecorderProtocol):
 
             # NLOSでもデータを使用するが、信頼度を下げる
             if not is_los:
-                logger.debug(
+                self.logger.debug(
                     f"UWBT - Tag {tag_id}: NLOS detected (value={nlos_value:.2f})"
                 )
 
@@ -304,7 +302,7 @@ class UWBLocalizer(DataRecorderProtocol):
             )
             estimates.append(estimate)
 
-            logger.debug(
+            self.logger.debug(
                 f"UWBT - Tag {tag_id}: pos=({world_point[0]:.3f}, {world_point[1]:.3f}, {world_point[2]:.3f}), "
                 f"conf={confidence:.3f}, dist={distance:.3f}m"
             )
@@ -364,7 +362,7 @@ class UWBLocalizer(DataRecorderProtocol):
             )
             estimates.append(estimate)
 
-            logger.debug(
+            self.logger.debug(
                 f"UWBP - Tag {tag_id}: pos=({world_point[0]:.3f}, {world_point[1]:.3f}, {world_point[2]:.3f}), "
                 f"conf={confidence:.3f}, dist={distance:.3f}m"
             )
@@ -434,17 +432,17 @@ class UWBLocalizer(DataRecorderProtocol):
             blue_position = self.get_best_blue_estimate()
 
             if blue_position is not None:
-                logger.info(
+                self.logger.info(
                     f"青色のみUWB推定結果: ({blue_position.x:.3f}, {blue_position.y:.3f}, {blue_position.z:.3f})"
                 )
                 return blue_position
             else:
                 # 青色の点が不足している場合は通常の推定結果を使用
-                logger.debug("青色の点が不足 - 通常の推定結果を使用")
+                self.logger.debug("青色の点が不足 - 通常の推定結果を使用")
                 return regular_position
 
         except Exception as e:
-            logger.error(f"青色のみUWB推定でエラー: {e}")
+            self.logger.error(f"青色のみUWB推定でエラー: {e}")
             # エラー時は前回の位置を返す
             if self.current_tag_positions:
                 return list(self.current_tag_positions.values())[0]
@@ -466,7 +464,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 all_tag_ids.add(uwbp_data["tag_id"])
 
             if not all_tag_ids:
-                logger.debug("No UWB data available")
+                self.logger.debug("No UWB data available")
                 # 前回の位置を返す（最も信頼度の高いタグの位置）
                 if self.current_tag_positions:
                     return list(self.current_tag_positions.values())[0]
@@ -577,7 +575,7 @@ class UWBLocalizer(DataRecorderProtocol):
                         is_far_from_gpos = gpos_distance >= 3.0
 
                         if is_far_from_gpos:
-                            logger.warning(
+                            self.logger.warning(
                                 f"Tag {tag_id}: UWB position is {gpos_distance:.2f}m away from GPOS (threshold: 3.0m)"
                             )
 
@@ -618,31 +616,31 @@ class UWBLocalizer(DataRecorderProtocol):
                         best_position = position
                         best_tag_id = tag_id
 
-                    logger.info(
+                    self.logger.info(
                         f"Tag {tag_id}: pos=({position.x:.3f}, {position.y:.3f}, {position.z:.3f}), "
                         f"conf={confidence:.3f}, count={count}, trajectory_points={len(self.tag_trajectories[tag_id])}"
                     )
 
             if best_position is None:
-                logger.debug("No valid tag estimates available")
+                self.logger.debug("No valid tag estimates available")
                 if self.current_tag_positions:
                     return list(self.current_tag_positions.values())[0]
                 return Position(0.0, 0.0, 0.0)
 
-            logger.info(f"=== UWB Position Estimation Results ===")
-            logger.info(f"Active tags: {len(all_tag_ids)}")
-            logger.info(
+            self.logger.info(f"=== UWB Position Estimation Results ===")
+            self.logger.info(f"Active tags: {len(all_tag_ids)}")
+            self.logger.info(
                 f"Best tag: {best_tag_id} with confidence {best_confidence:.3f}"
             )
-            logger.info(
+            self.logger.info(
                 f"Position: ({best_position.x:.3f}, {best_position.y:.3f}, {best_position.z:.3f})"
             )
-            logger.info(f"=========================================")
+            self.logger.info(f"=========================================")
 
             return best_position
 
         except Exception as e:
-            logger.error(f"Error in UWB estimation: {e}")
+            self.logger.error(f"Error in UWB estimation: {e}")
             if self.current_tag_positions:
                 return list(self.current_tag_positions.values())[0]
             return Position(0.0, 0.0, 0.0)
@@ -652,7 +650,7 @@ class UWBLocalizer(DataRecorderProtocol):
         blue_points = self.get_blue_only_measurements_for_tag(tag_id)
 
         if not blue_points:
-            logger.debug(f"Tag {tag_id}: 青色の点がありません")
+            self.logger.debug(f"Tag {tag_id}: 青色の点がありません")
             return None
 
         # 信頼度による重み付き平均を計算
@@ -673,7 +671,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 z=float(weighted_position[2]),
             )
 
-            logger.debug(
+            self.logger.debug(
                 f"Tag {tag_id}: 青色点からの推定位置 "
                 f"({estimated_position.x:.3f}, {estimated_position.y:.3f}, {estimated_position.z:.3f}) "
                 f"from {len(blue_points)} blue points"
@@ -717,7 +715,7 @@ class UWBLocalizer(DataRecorderProtocol):
             ]
 
             if not blue_points:
-                logger.info(f"Tag {tag_id}: 青色条件を満たす軌跡点がありません")
+                self.logger.info(f"Tag {tag_id}: 青色条件を満たす軌跡点がありません")
                 continue
 
             # Position形式に変換
@@ -727,7 +725,7 @@ class UWBLocalizer(DataRecorderProtocol):
 
             blue_trajectories[tag_id] = blue_trajectory
 
-            logger.info(
+            self.logger.info(
                 f"青色軌跡を作成 - Tag {tag_id}: {len(blue_trajectory)} points "
                 f"(全軌跡 {len(trajectory)} → フィルタリング後 {len(blue_trajectory)}, "
                 f"{len(blue_trajectory)/len(trajectory)*100:.1f}%)"
@@ -776,7 +774,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 best_tag_id = tag_id
 
         if best_position:
-            logger.info(
+            self.logger.info(
                 f"青色軌跡からの最良推定: Tag {best_tag_id}, "
                 f"信頼度 {best_confidence:.3f}, "
                 f"位置 ({best_position.x:.3f}, {best_position.y:.3f}, {best_position.z:.3f})"
@@ -811,7 +809,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 )
                 blue_df.to_csv(csv_file, index=False)
 
-                logger.info(
+                self.logger.info(
                     f"青色のみ軌跡をCSV保存: {csv_file} ({len(trajectory)} points)"
                 )
 
@@ -823,13 +821,13 @@ class UWBLocalizer(DataRecorderProtocol):
                     else 0
                 )
 
-                logger.info(
+                self.logger.info(
                     f"Tag {tag_id} フィルタリング統計: "
                     f"{total_measurements} → {len(trajectory)} points ({filter_ratio:.1f}%)"
                 )
 
         except Exception as e:
-            logger.error(f"青色のみ軌跡のCSV保存中にエラー: {e}")
+            self.logger.error(f"青色のみ軌跡のCSV保存中にエラー: {e}")
             import traceback
 
             traceback.print_exc()
@@ -874,7 +872,7 @@ class UWBLocalizer(DataRecorderProtocol):
             raw_measurements = self.get_raw_measurements()
 
             if not raw_measurements:
-                logger.info("青色のみ表示: 測定データがありません")
+                self.logger.info("青色のみ表示: 測定データがありません")
                 return
 
             # 各タグごとに青色のみの軌跡をプロット
@@ -890,7 +888,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 ]
 
                 if not blue_points:
-                    logger.info(f"Tag {tag_id}: 青色の条件を満たす点がありません")
+                    self.logger.info(f"Tag {tag_id}: 青色の条件を満たす点がありません")
                     continue
 
                 # 図を作成
@@ -987,14 +985,14 @@ class UWBLocalizer(DataRecorderProtocol):
                 plt.savefig(output_file, bbox_inches="tight", dpi=150)
                 plt.close(fig)
 
-                logger.info(
+                self.logger.info(
                     f"青色のみ軌跡を保存: {output_file} ({len(blue_points)} points)"
                 )
 
-            logger.info(f"青色のみ表示が完了しました（出力: {output_path}）")
+            self.logger.info(f"青色のみ表示が完了しました（出力: {output_path}）")
 
         except Exception as e:
-            logger.error(f"青色のみ表示中にエラーが発生: {e}")
+            self.logger.error(f"青色のみ表示中にエラーが発生: {e}")
             import traceback
 
             traceback.print_exc()
