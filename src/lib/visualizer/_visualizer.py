@@ -93,7 +93,7 @@ class Visualizer(DataRecorderProtocol):
             plt.show()
         
         # 各タグの軌跡を個別にプロット
-        if hasattr(self, 'UWB_get_tag_trajectories'):
+        if hasattr(self, 'get_tag_trajectories'):
             self.plot_tag_trajectories(
                 map_file=map_file,
                 output_file=output_file,
@@ -139,23 +139,23 @@ class Visualizer(DataRecorderProtocol):
         use_raw_measurements = False
         
         # 生の測定値があるかチェック
-        if hasattr(self, 'UWB_get_raw_measurements'):
-            raw_measurements = self.UWB_get_raw_measurements()
+        if hasattr(self, 'get_raw_measurements'):
+            raw_measurements = self.get_raw_measurements()
             if raw_measurements:
                 use_raw_measurements = True
                 trajectories_to_plot = raw_measurements
                 use_los_info = True  # 生の測定値にはLOS情報が含まれる
         
         if not use_raw_measurements:
-            if hasattr(self, 'UWB_get_tag_trajectories_with_los'):
-                tag_trajectories_with_los = self.UWB_get_tag_trajectories_with_los()
+            if hasattr(self, 'get_tag_trajectories_with_los'):
+                tag_trajectories_with_los = self.get_tag_trajectories_with_los()
                 if tag_trajectories_with_los:
                     use_los_info = True
                     trajectories_to_plot = tag_trajectories_with_los
         
         if not use_raw_measurements and not use_los_info:
             # 通常のタグ軌跡を取得（後方互換性）
-            tag_trajectories = self.UWB_get_tag_trajectories()
+            tag_trajectories = self.get_tag_trajectories()
             if not tag_trajectories:
                 self.logger.info("タグの軌跡データがありません")
                 return

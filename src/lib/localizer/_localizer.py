@@ -25,7 +25,7 @@ class Localizer(
         # pdr_pos = self.estimate_pdr()
         
         # 青色のみ推定を優先的に使用
-        uwb_pos = self.UWB_estimate_uwb_blue_only()
+        uwb_pos = self.estimate_uwb_blue_only()
         # viso_pos = self.estimate_vio()
 
         # UWBの推定結果が得られた場合はそれを使用、そうでなければ前回の位置を使用
