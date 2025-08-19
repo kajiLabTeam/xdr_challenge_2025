@@ -29,6 +29,6 @@ class Params:
         return 1.0
 
     @staticmethod
-    @float_env_or_call("INIT_ANGLE")
+    @float_env_or_call("INIT_ANGLE_RAD")
     def init_angle_rad() -> float:
         return np.deg2rad(80)

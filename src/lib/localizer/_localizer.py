@@ -30,4 +30,4 @@ class Localizer(
         last_pos = self.last_position()
 
         # 推定結果を保存
-        self.positions.append(vis_pos if vis_pos else Position(0, 0, 0))
+        self.positions.append(vis_pos if vis_pos else pdr_pos)

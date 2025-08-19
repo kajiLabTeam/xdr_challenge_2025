@@ -27,11 +27,11 @@ class PDRLocalizer(DataRecorderProtocol):
 
         # ノルムの計算
         acce_df["norm"] = np.sqrt(
-            acce_df["acce_x"] ** 2 + acce_df["acce_y"] ** 2 + acce_df["acce_z"] ** 2
+            acce_df["acc_x"] ** 2 + acce_df["acc_y"] ** 2 + acce_df["acc_z"] ** 2
         )
 
         # 角度の計算
-        gyro_df["angle"] = np.cumsum(gyro_df["x"]) / gyro_fs
+        gyro_df["angle"] = np.cumsum(gyro_df["gyr_x"]) / gyro_fs
 
         # 移動平均フィルタ
         window_acc_frame = int(Params.window_acc_sec() * acce_fs)
@@ -48,8 +48,11 @@ class PDRLocalizer(DataRecorderProtocol):
         )
 
         gyro_timestamps = np.asarray(gyro_df["app_timestamp"].values)
-        # FIX ME
-        track: list[Position] = [self.positions[0]]
+        first_position = self.positions[0]
+        if first_position is None:
+            raise ValueError("初期位置が設定されていません")
+
+        track: list[Position] = [first_position]
 
         for peak in peaks:
             time = acce_df["app_timestamp"][peak]
