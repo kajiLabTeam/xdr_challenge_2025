@@ -52,6 +52,7 @@ class Visualizer(DataRecorderProtocol):
             map_origin[1] + height_m,
         )
 
+        # メインプロット（最終推定結果）
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
         c = df.index * maxwait if maxwait else df.index
@@ -80,7 +81,6 @@ class Visualizer(DataRecorderProtocol):
 
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
-
         plt.colorbar(scatter, ax=ax, label="timestamp (s)")
         plt.legend()
 

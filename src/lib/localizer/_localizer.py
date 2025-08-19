@@ -2,7 +2,6 @@ from typing import final
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.recorder import DataRecorder
 from src.lib.visualizer import Visualizer
-from src.type import Position
 from .pdr import PDRLocalizer
 from .vio import VIOLocalizer
 from .uwb import UWBLocalizer
@@ -23,11 +22,14 @@ class Localizer(
     @require_attr_appended("positions", 1)
     def estimate(self) -> None:
         # pdr_pos = self.estimate_pdr()
-        # uwb_pos = self.estimate_uwb()
-        vis_pos = self.estimate_vio()
-        # viso_orientations = self.estimate_vio_orientations()
 
-        last_pos = self.last_position()
+        # 青色のみ推定を優先的に使用
+        uwb_pos = self.estimate_uwb()
+        # viso_pos = self.estimate_vio()
 
-        # 推定結果を保存
-        self.positions.append(vis_pos if vis_pos else Position(0, 0, 0))
+        # UWBの推定結果が得られた場合はそれを使用、そうでなければ前回の位置を使用
+        if uwb_pos is not None:
+            self.positions.append(uwb_pos)
+        else:
+            last_pos = self.last_position()
+            self.positions.append(last_pos)

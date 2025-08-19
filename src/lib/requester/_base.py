@@ -23,7 +23,6 @@ class BaseRequester(ABC):
               - `test` 実際のログファイルデータを使っており、より実践的なテストができる
             logger (Logger): ロガーインスタンス
         """
-        raise NotImplementedError("__init__ method not implemented")
 
     @abstractmethod
     def send_reload_req(self, keeplog: bool = False) -> TrialState | None:
@@ -37,7 +36,6 @@ class BaseRequester(ABC):
             TrialState: トライアルの状態
             None: リロードに失敗した場合
         """
-        raise NotImplementedError("send_reload_req method not implemented")
 
     @abstractmethod
     def send_state_req(self) -> TrialState | None:
@@ -50,7 +48,6 @@ class BaseRequester(ABC):
             TrialState: トライアルの状態
             None: リクエストに失敗した場合
         """
-        raise NotImplementedError("send_state_req method not implemented")
 
     @abstractmethod
     def send_nextdata_req(
@@ -87,7 +84,6 @@ class BaseRequester(ABC):
         """
         位置情報の推定値リストをCSV形式で取得する
         """
-        raise NotImplementedError("send_nextdata_req method not implemented")
 
     def _get(self, path: str, **kwargs: Any) -> requests.Response:
         """

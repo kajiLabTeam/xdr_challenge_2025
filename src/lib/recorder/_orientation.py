@@ -1,3 +1,4 @@
+from logging import Logger
 from typing import Protocol, final
 from src.lib.safelist._safelist import SafeList
 from src.type import QOrientationWithTimestamp
@@ -6,10 +7,8 @@ from src.type import QOrientationWithTimestamp
 class OrientationDataRecorderProtocol(Protocol):
     orientations: SafeList[QOrientationWithTimestamp]
 
-    def last_orientation(self) -> QOrientationWithTimestamp:
-        raise NotImplementedError(
-            "This method should be implemented by subclasses. OrientationDataRecorderProtocol.last_orientation"
-        )
+    def __init__(self, trial_id: str, logger: Logger): ...
+    def last_orientation(self) -> QOrientationWithTimestamp: ...
 
 
 class OrientationDataRecorder:

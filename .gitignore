@@ -211,3 +211,4 @@ src/api/trials/*
 !src/lib
 
 output/
+CLAUDE.md

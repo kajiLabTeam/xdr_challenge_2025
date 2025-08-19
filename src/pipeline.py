@@ -101,6 +101,11 @@ def pipeline(
         ground_truth_df=ground_truth_df,
     )
 
+    # 青色のみの軌跡をプロット
+    localizer.plot_blue_only_trajectories(
+        output_dir=str(output_dir), map_file="map/miraikan_5.bmp"
+    )
+
     # 評価
     rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
     logger.info(f"RMSE: {rmse}")
