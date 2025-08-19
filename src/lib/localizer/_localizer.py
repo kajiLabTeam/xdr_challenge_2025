@@ -25,7 +25,7 @@ class Localizer(
         # pdr_pos = self.estimate_pdr()
 
         # 青色のみ推定を優先的に使用
-        uwb_pos = self.estimate_uwb_blue_only()
+        uwb_pos = self.estimate_uwb()
         # viso_pos = self.estimate_vio()
 
         # UWBの推定結果が得られた場合はそれを使用、そうでなければ前回の位置を使用
@@ -33,5 +33,4 @@ class Localizer(
             self.positions.append(uwb_pos)
         else:
             last_pos = self.last_position()
-            # 推定結果を保存（暫定的に+1）
-            self.positions.append(Position(last_pos.x + 1, last_pos.y, last_pos.z))
+            self.positions.append(last_pos)
