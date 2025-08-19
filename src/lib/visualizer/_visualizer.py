@@ -100,7 +100,8 @@ class Visualizer(DataRecorderProtocol):
                 map_origin=map_origin,
                 map_ppm=map_ppm,
                 show=show,
-                save=save
+                save=save,
+                blue_only=False  # デフォルトは4色表示
             )
     
     def plot_tag_trajectories(
@@ -111,9 +112,13 @@ class Visualizer(DataRecorderProtocol):
         map_ppm: float = 100,
         show: bool = True,
         save: bool = True,
+        blue_only: bool = False,
     ) -> None:
         """
         各タグの軌跡を個別のファイルにプロットする（LOS/NLOS情報で色分け）
+        
+        Args:
+            blue_only: Trueの場合、青色（LOS & GPOSに近い）のみを表示
         """
         src_dir = Path().resolve()
         bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
@@ -167,12 +172,22 @@ class Visualizer(DataRecorderProtocol):
             ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
             
             if use_los_info:
-                # LOS情報付きの軌跡をDataFrameに変換
-                tag_df = pd.DataFrame(
-                    [(pos.x, pos.y, pos.z, pos.is_los, pos.confidence, pos.method) 
-                     for pos in trajectory],
-                    columns=["x", "y", "z", "is_los", "confidence", "method"]
-                )
+                # LOS情報付きの軌跡をDataFrameに変換（GPOSとの距離情報も含む）
+                if hasattr(trajectory[0], 'gpos_distance'):
+                    tag_df = pd.DataFrame(
+                        [(pos.x, pos.y, pos.z, pos.is_los, pos.confidence, pos.method,
+                          getattr(pos, 'gpos_distance', 0.0), getattr(pos, 'is_far_from_gpos', False)) 
+                         for pos in trajectory],
+                        columns=["x", "y", "z", "is_los", "confidence", "method", "gpos_distance", "is_far_from_gpos"]
+                    )
+                else:
+                    tag_df = pd.DataFrame(
+                        [(pos.x, pos.y, pos.z, pos.is_los, pos.confidence, pos.method) 
+                         for pos in trajectory],
+                        columns=["x", "y", "z", "is_los", "confidence", "method"]
+                    )
+                    tag_df['gpos_distance'] = 0.0
+                    tag_df['is_far_from_gpos'] = False
                 
                 # LOSとNLOSを分離
                 los_df = tag_df[tag_df['is_los'] == True]
@@ -190,20 +205,79 @@ class Visualizer(DataRecorderProtocol):
                        color='gray', alpha=0.3, linewidth=1,
                        label=f"Tag {tag_id} trajectory")
                 
-                # LOSポイントをプロット（青色）
-                if not los_df.empty:
-                    ax.scatter(los_df.x, los_df.y, s=20, 
-                             color='blue', alpha=0.6, 
-                             edgecolors='darkblue', linewidth=0.5,
-                             label=f"LOS ({len(los_df)} points)", zorder=3)
+                # GPOSとの距離で分離
+                close_to_gpos_df = tag_df[tag_df['is_far_from_gpos'] == False]
+                far_from_gpos_df = tag_df[tag_df['is_far_from_gpos'] == True]
                 
-                # NLOSポイントをプロット（赤色）
-                if not nlos_df.empty:
-                    ax.scatter(nlos_df.x, nlos_df.y, s=30, 
-                             color='red', alpha=0.8, 
-                             edgecolors='darkred', linewidth=0.5,
-                             marker='x',  # NLOSは×印で強調
-                             label=f"NLOS ({len(nlos_df)} points)", zorder=4)
+                # デバッグ情報を出力
+                print(f"\n=== Tag {tag_id} Debug Info ===")
+                print(f"Total points: {len(tag_df)}")
+                print(f"Close to GPOS: {len(close_to_gpos_df)}")
+                print(f"Far from GPOS: {len(far_from_gpos_df)}")
+                if 'gpos_distance' in tag_df.columns:
+                    print(f"Distance range: {tag_df['gpos_distance'].min():.2f} - {tag_df['gpos_distance'].max():.2f}m")
+                    print(f"Points >3m: {(tag_df['gpos_distance'] >= 3.0).sum()}")
+                print("="*30)
+                
+                if blue_only:
+                    # 青色のみ表示（LOS & 3m以内）
+                    blue_points = close_to_gpos_df[close_to_gpos_df['is_los'] == True]
+                    
+                    if not blue_points.empty:
+                        ax.scatter(blue_points.x, blue_points.y, s=20, 
+                                 color='blue', alpha=0.7, 
+                                 edgecolors='darkblue', linewidth=0.5,
+                                 label=f"Reliable Points: LOS & <3m from GPOS ({len(blue_points)} points)", zorder=3)
+                    
+                    # 統計情報を更新（青色のみの場合）
+                    filtered_ratio = len(blue_points) / len(tag_df) * 100 if len(tag_df) > 0 else 0
+                    
+                    # タイトルに情報追加
+                    ax.set_title(f"Tag {tag_id} - Reliable Points Only\\n"
+                               f"Total: {len(tag_df)} → Filtered: {len(blue_points)} ({filtered_ratio:.1f}%)")
+                    
+                else:
+                    # 4色表示（従来機能）
+                    # GPOSに近い点（3m以内）をプロット
+                    if not close_to_gpos_df.empty:
+                        los_close = close_to_gpos_df[close_to_gpos_df['is_los'] == True]
+                        nlos_close = close_to_gpos_df[close_to_gpos_df['is_los'] == False]
+                        
+                        # LOS & 3m以内 → 青色
+                        if not los_close.empty:
+                            ax.scatter(los_close.x, los_close.y, s=20, 
+                                     color='blue', alpha=0.7, 
+                                     edgecolors='darkblue', linewidth=0.5,
+                                     label=f"LOS & <3m from GPOS ({len(los_close)} points)", zorder=3)
+                        
+                        # NLOS & 3m以内 → 黄色
+                        if not nlos_close.empty:
+                            ax.scatter(nlos_close.x, nlos_close.y, s=25, 
+                                     color='yellow', alpha=0.8, 
+                                     edgecolors='gold', linewidth=0.5,
+                                     marker='s',  # 四角でNLOSを表示
+                                     label=f"NLOS & <3m from GPOS ({len(nlos_close)} points)", zorder=3)
+                    
+                    # GPOSから遠い点（3m以上）をプロット
+                    if not far_from_gpos_df.empty:
+                        los_far = far_from_gpos_df[far_from_gpos_df['is_los'] == True]
+                        nlos_far = far_from_gpos_df[far_from_gpos_df['is_los'] == False]
+                        
+                        # LOS & 3m以上 → 紫色
+                        if not los_far.empty:
+                            ax.scatter(los_far.x, los_far.y, s=30, 
+                                     color='purple', alpha=0.8, 
+                                     edgecolors='darkviolet', linewidth=1.0,
+                                     marker='^',  # 三角でGPOSから遠いLOSを表示
+                                     label=f"LOS & ≥3m from GPOS ({len(los_far)} points)", zorder=4)
+                        
+                        # NLOS & 3m以上 → 赤色
+                        if not nlos_far.empty:
+                            ax.scatter(nlos_far.x, nlos_far.y, s=35, 
+                                     color='red', alpha=0.9, 
+                                     edgecolors='darkred', linewidth=1.0,
+                                     marker='x',  # ×でGPOSから遠いNLOSを強調
+                                     label=f"NLOS & ≥3m from GPOS ({len(nlos_far)} points)", zorder=5)
                 
                 # 統計情報を図に追加
                 los_ratio = len(los_df) / len(tag_df) * 100 if len(tag_df) > 0 else 0

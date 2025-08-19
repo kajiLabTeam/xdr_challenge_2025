@@ -31,6 +31,8 @@ class PositionWithLOS(NamedTuple):
     is_los: bool
     confidence: float
     method: str  # 'UWBT' or 'UWBP'
+    gpos_distance: float = 0.0  # GPOSとの距離（メートル）
+    is_far_from_gpos: bool = False  # GPOSから3m以上離れているかのフラグ
 
 
 class UWBLocalizer(DataRecorderProtocol):
@@ -405,6 +407,30 @@ class UWBLocalizer(DataRecorderProtocol):
         
         return None
     
+    def estimate_uwb_blue_only(self) -> Position | None:
+        """青色の点のみを使用したUWB位置推定（通常のestimate_uwbを実行後に青色フィルタリング）"""
+        try:
+            # まず通常のUWB推定を実行してデータを蓄積
+            regular_position = self.estimate_uwb()
+            
+            # 青色の点が十分にある場合は青色のみの推定を試みる
+            blue_position = self.get_best_blue_estimate()
+            
+            if blue_position is not None:
+                logger.info(f"青色のみUWB推定結果: ({blue_position.x:.3f}, {blue_position.y:.3f}, {blue_position.z:.3f})")
+                return blue_position
+            else:
+                # 青色の点が不足している場合は通常の推定結果を使用
+                logger.debug("青色の点が不足 - 通常の推定結果を使用")
+                return regular_position
+                
+        except Exception as e:
+            logger.error(f"青色のみUWB推定でエラー: {e}")
+            # エラー時は前回の位置を返す
+            if self.current_tag_positions:
+                return list(self.current_tag_positions.values())[0]
+            return Position(0.0, 0.0, 0.0)
+    
     @final
     def estimate_uwb(self) -> Position | None:
         """各タグごとに個別の推定軌跡を作成し、最も信頼度の高いタグの位置を返す"""
@@ -447,13 +473,37 @@ class UWBLocalizer(DataRecorderProtocol):
                     self.uwbt_only_measurements[tag_id] = []
                 
                 for estimate in all_raw_estimates:
+                    # 各推定点でGPOSとの距離を計算
+                    gpos_distance = 0.0
+                    is_far_from_gpos = False
+                    
+                    # 最新のGPOSデータを取得
+                    gpos_data = self.gpos_datarecorder.data
+                    tag_gpos_data = [d for d in gpos_data if d["object_id"] == tag_id]
+                    
+                    if tag_gpos_data:
+                        # 最新のGPOSデータを使用
+                        latest_gpos = tag_gpos_data[-1]
+                        gpos_pos = np.array([
+                            latest_gpos["location_x"],
+                            latest_gpos["location_y"],
+                            latest_gpos["location_z"]
+                        ])
+                        uwb_pos = np.array([estimate.position[0], estimate.position[1], estimate.position[2]])
+                        
+                        # ユークリッド距離を計算
+                        gpos_distance = float(np.linalg.norm(uwb_pos - gpos_pos))
+                        is_far_from_gpos = gpos_distance >= 3.0
+                    
                     raw_position = PositionWithLOS(
                         x=float(estimate.position[0]),
                         y=float(estimate.position[1]),
                         z=float(estimate.position[2]),
                         is_los=estimate.is_los,
                         confidence=estimate.confidence,
-                        method=estimate.method
+                        method=estimate.method,
+                        gpos_distance=gpos_distance,
+                        is_far_from_gpos=is_far_from_gpos
                     )
                     self.raw_measurements[tag_id].append(raw_position)
                     
@@ -475,6 +525,31 @@ class UWBLocalizer(DataRecorderProtocol):
                     if tag_id not in self.tag_trajectories_with_los:
                         self.tag_trajectories_with_los[tag_id] = []
                     
+                    # GPOSとの距離を計算
+                    gpos_distance = 0.0
+                    is_far_from_gpos = False
+                    
+                    # 最新のGPOSデータを取得
+                    gpos_data = self.gpos_datarecorder.data
+                    tag_gpos_data = [d for d in gpos_data if d["object_id"] == tag_id]
+                    
+                    if tag_gpos_data:
+                        # 最新のGPOSデータを使用
+                        latest_gpos = tag_gpos_data[-1]
+                        gpos_pos = np.array([
+                            latest_gpos["location_x"],
+                            latest_gpos["location_y"],
+                            latest_gpos["location_z"]
+                        ])
+                        uwb_pos = np.array([position.x, position.y, position.z])
+                        
+                        # ユークリッド距離を計算
+                        gpos_distance = float(np.linalg.norm(uwb_pos - gpos_pos))
+                        is_far_from_gpos = gpos_distance >= 3.0
+                        
+                        if is_far_from_gpos:
+                            logger.warning(f"Tag {tag_id}: UWB position is {gpos_distance:.2f}m away from GPOS (threshold: 3.0m)")
+                    
                     # 最新の推定結果からLOS情報を取得
                     if tag_id in self.tag_estimates and self.tag_estimates[tag_id]:
                         latest_estimate = self.tag_estimates[tag_id][-1]
@@ -484,7 +559,9 @@ class UWBLocalizer(DataRecorderProtocol):
                             z=position.z,
                             is_los=latest_estimate.is_los,
                             confidence=confidence,
-                            method=latest_estimate.method
+                            method=latest_estimate.method,
+                            gpos_distance=gpos_distance,
+                            is_far_from_gpos=is_far_from_gpos
                         )
                     else:
                         # デフォルト値を使用
@@ -494,7 +571,9 @@ class UWBLocalizer(DataRecorderProtocol):
                             z=position.z,
                             is_los=True,
                             confidence=confidence,
-                            method='UNKNOWN'
+                            method='UNKNOWN',
+                            gpos_distance=gpos_distance,
+                            is_far_from_gpos=is_far_from_gpos
                         )
                     
                     self.tag_trajectories_with_los[tag_id].append(position_with_los)
@@ -563,6 +642,145 @@ class UWBLocalizer(DataRecorderProtocol):
         """指定されたタグのUWBTのみの測定値を取得"""
         return self.uwbt_only_measurements.get(tag_id, []).copy()
     
+    def get_blue_only_measurements(self) -> Dict[str, List[PositionWithLOS]]:
+        """青色の点（LOS & GPOSから3m以内）のみを取得"""
+        blue_measurements = {}
+        
+        for tag_id, measurements in self.raw_measurements.items():
+            blue_points = [
+                pos for pos in measurements 
+                if pos.is_los and not pos.is_far_from_gpos
+            ]
+            if blue_points:
+                blue_measurements[tag_id] = blue_points
+        
+        return blue_measurements
+    
+    def get_blue_only_measurements_for_tag(self, tag_id: str) -> List[PositionWithLOS]:
+        """指定されたタグの青色の点のみを取得"""
+        measurements = self.raw_measurements.get(tag_id, [])
+        return [
+            pos for pos in measurements 
+            if pos.is_los and not pos.is_far_from_gpos
+        ]
+    
+    def create_blue_only_trajectories(self) -> Dict[str, List[Position]]:
+        """青色の点のみから推定軌跡を作成（重み付き平均後の軌跡から青色フィルタリング）"""
+        blue_trajectories = {}
+        
+        # 重み付き平均後のLOS情報付き軌跡から青色の点をフィルタリング
+        tag_trajectories_with_los = self.get_tag_trajectories_with_los()
+        
+        for tag_id, trajectory in tag_trajectories_with_los.items():
+            if not trajectory:
+                continue
+            
+            # 青色の条件でフィルタリング（LOS & GPOSから3m以内）
+            blue_points = [
+                pos for pos in trajectory 
+                if pos.is_los and not pos.is_far_from_gpos
+            ]
+            
+            if not blue_points:
+                logger.info(f"Tag {tag_id}: 青色条件を満たす軌跡点がありません")
+                continue
+            
+            # Position形式に変換
+            blue_trajectory = [
+                Position(x=pos.x, y=pos.y, z=pos.z) 
+                for pos in blue_points
+            ]
+            
+            blue_trajectories[tag_id] = blue_trajectory
+            
+            logger.info(f"青色軌跡を作成 - Tag {tag_id}: {len(blue_trajectory)} points "
+                       f"(全軌跡 {len(trajectory)} → フィルタリング後 {len(blue_trajectory)}, "
+                       f"{len(blue_trajectory)/len(trajectory)*100:.1f}%)")
+        
+        return blue_trajectories
+    
+    def estimate_position_from_blue_points(self, tag_id: str) -> Optional[Position]:
+        """青色の点のみから位置を推定（重み付き平均）"""
+        blue_points = self.get_blue_only_measurements_for_tag(tag_id)
+        
+        if not blue_points:
+            logger.debug(f"Tag {tag_id}: 青色の点がありません")
+            return None
+        
+        # 信頼度による重み付き平均を計算
+        positions = np.array([[pos.x, pos.y, pos.z] for pos in blue_points])
+        weights = np.array([pos.confidence for pos in blue_points])
+        
+        # 重み正規化
+        total_weight = np.sum(weights)
+        if total_weight > 0:
+            weights = weights / total_weight
+            
+            # 重み付き平均
+            weighted_position = np.sum(positions * weights.reshape(-1, 1), axis=0)
+            
+            estimated_position = Position(
+                x=float(weighted_position[0]),
+                y=float(weighted_position[1]), 
+                z=float(weighted_position[2])
+            )
+            
+            logger.debug(f"Tag {tag_id}: 青色点からの推定位置 "
+                        f"({estimated_position.x:.3f}, {estimated_position.y:.3f}, {estimated_position.z:.3f}) "
+                        f"from {len(blue_points)} blue points")
+            
+            return estimated_position
+        
+        return None
+    
+    def get_best_blue_estimate(self) -> Optional[Position]:
+        """青色軌跡から最新の最も信頼度の高い推定位置を取得"""
+        best_position = None
+        best_confidence = 0.0
+        best_tag_id = None
+        
+        # 重み付き平均後の青色軌跡を取得
+        tag_trajectories_with_los = self.get_tag_trajectories_with_los()
+        
+        for tag_id, trajectory in tag_trajectories_with_los.items():
+            if not trajectory:
+                continue
+            
+            # 青色の点のみを抽出
+            blue_points = [
+                pos for pos in trajectory 
+                if pos.is_los and not pos.is_far_from_gpos
+            ]
+            
+            if not blue_points:
+                continue
+            
+            # 最新の青色の点を使用
+            latest_blue_point = blue_points[-1]
+            
+            # 青色の点の平均信頼度を計算
+            avg_confidence = sum(pos.confidence for pos in blue_points) / len(blue_points)
+            
+            # 点数によるボーナス（多くの青色点がある方が信頼度が高い）
+            point_bonus = min(len(blue_points) * 0.1, 0.5)
+            total_confidence = avg_confidence + point_bonus
+            
+            if total_confidence > best_confidence:
+                best_confidence = total_confidence
+                best_position = Position(
+                    x=latest_blue_point.x,
+                    y=latest_blue_point.y,
+                    z=latest_blue_point.z
+                )
+                best_tag_id = tag_id
+        
+        if best_position:
+            logger.info(f"青色軌跡からの最良推定: Tag {best_tag_id}, "
+                       f"信頼度 {best_confidence:.3f}, "
+                       f"位置 ({best_position.x:.3f}, {best_position.y:.3f}, {best_position.z:.3f})")
+        
+        return best_position
+    
     def clear_trajectories(self) -> None:
         """全ての軌跡をクリア"""
         self.tag_trajectories.clear()
@@ -571,3 +789,168 @@ class UWBLocalizer(DataRecorderProtocol):
         self.tag_estimates.clear()
         self.raw_measurements.clear()
         self.uwbt_only_measurements.clear()
+    
+    def save_blue_only_trajectories_to_csv(self, output_dir: str, trial_id: str, timestamp: str) -> None:
+        """青色の点のみから作成した軌跡をCSVファイルに保存"""
+        try:
+            import pandas as pd
+            from pathlib import Path
+            
+            output_path = Path(output_dir)
+            blue_trajectories = self.create_blue_only_trajectories()
+            
+            for tag_id, trajectory in blue_trajectories.items():
+                if not trajectory:
+                    continue
+                
+                # DataFrame作成
+                blue_df = pd.DataFrame(
+                    [(pos.x, pos.y, pos.z) for pos in trajectory],
+                    columns=["x", "y", "z"]
+                )
+                
+                # CSVファイルに保存
+                csv_file = output_path / f"{trial_id}_{timestamp}_tag_{tag_id}_blue_only.csv"
+                blue_df.to_csv(csv_file, index=False)
+                
+                logger.info(f"青色のみ軌跡をCSV保存: {csv_file} ({len(trajectory)} points)")
+                
+                # 統計情報をログ出力
+                total_measurements = len(self.raw_measurements.get(tag_id, []))
+                filter_ratio = (len(trajectory) / total_measurements * 100) if total_measurements > 0 else 0
+                
+                logger.info(f"Tag {tag_id} フィルタリング統計: "
+                           f"{total_measurements} → {len(trajectory)} points ({filter_ratio:.1f}%)")
+                
+        except Exception as e:
+            logger.error(f"青色のみ軌跡のCSV保存中にエラー: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def plot_blue_only_trajectories(
+        self, 
+        output_dir: str = "output", 
+        map_file: str = "map/miraikan_5.bmp"
+    ) -> None:
+        """青色（LOS & GPOSから3m以内）の軌跡のみを表示する独立した可視化機能"""
+        try:
+            import matplotlib.pyplot as plt
+            from PIL import Image
+            import numpy as np
+            from pathlib import Path
+            import time
+            
+            # 出力ディレクトリの作成
+            output_path = Path(output_dir)
+            output_path.mkdir(exist_ok=True)
+            
+            # タイムスタンプ付きのファイル名
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            
+            # マップ画像を読み込み
+            src_dir = Path().resolve()
+            bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
+            
+            # マップの設定
+            map_origin = (-5.625, -12.75)
+            map_ppm = 100
+            height, width = bitmap_array.shape[:2]
+            width_m = width / map_ppm
+            height_m = height / map_ppm
+            
+            extent = (
+                map_origin[0],
+                map_origin[0] + width_m,
+                map_origin[1],
+                map_origin[1] + height_m,
+            )
+            
+            # 生の測定値を取得
+            raw_measurements = self.get_raw_measurements()
+            
+            if not raw_measurements:
+                logger.info("青色のみ表示: 測定データがありません")
+                return
+            
+            # 各タグごとに青色のみの軌跡をプロット
+            for tag_id, measurements in raw_measurements.items():
+                if not measurements:
+                    continue
+                
+                # 青色の条件でフィルタリング（LOS & GPOSから3m以内）
+                blue_points = [
+                    pos for pos in measurements 
+                    if pos.is_los and not pos.is_far_from_gpos
+                ]
+                
+                if not blue_points:
+                    logger.info(f"Tag {tag_id}: 青色の条件を満たす点がありません")
+                    continue
+                
+                # 図を作成
+                fig, ax = plt.subplots(1, 1, figsize=(20, 10))
+                ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
+                
+                # 青色の点のみをプロット
+                x_coords = [pos.x for pos in blue_points]
+                y_coords = [pos.y for pos in blue_points]
+                
+                # 軌跡の線をプロット（グレー）
+                ax.plot(x_coords, y_coords, '-', 
+                       color='gray', alpha=0.3, linewidth=1,
+                       label=f"Tag {tag_id} trajectory")
+                
+                # 青色の点をプロット
+                ax.scatter(x_coords, y_coords, s=20, 
+                         color='blue', alpha=0.7, 
+                         edgecolors='darkblue', linewidth=0.5,
+                         label=f"Reliable Points: LOS & <3m from GPOS ({len(blue_points)} points)", 
+                         zorder=3)
+                
+                # 始点と終点を強調
+                if blue_points:
+                    # 始点（緑の四角）
+                    ax.scatter(blue_points[0].x, blue_points[0].y, 
+                             s=200, color='green', marker='s', 
+                             edgecolors='black', linewidth=2,
+                             label="Start", zorder=5)
+                    
+                    # 終点（オレンジの三角）
+                    ax.scatter(blue_points[-1].x, blue_points[-1].y, 
+                             s=200, color='orange', marker='^', 
+                             edgecolors='black', linewidth=2,
+                             label="End", zorder=5)
+                
+                # 軸とタイトルの設定
+                ax.set_xlabel("x (m)")
+                ax.set_ylabel("y (m)")
+                ax.set_title(f"Tag {tag_id} - Blue Only (Reliable Points)\n"
+                           f"Total measurements: {len(measurements)} → Filtered: {len(blue_points)} "
+                           f"({len(blue_points)/len(measurements)*100:.1f}%)")
+                ax.grid(True, alpha=0.3)
+                ax.legend(loc='upper right')
+                
+                # 統計情報をテキストボックスで表示
+                info_text = f"Blue points: {len(blue_points)}\n"
+                info_text += f"Total measurements: {len(measurements)}\n"
+                info_text += f"Filter ratio: {len(blue_points)/len(measurements)*100:.1f}%\n"
+                info_text += f"All LOS & <3m from GPOS"
+                
+                ax.text(0.02, 0.98, info_text, 
+                       transform=ax.transAxes, fontsize=10,
+                       verticalalignment='top',
+                       bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+                
+                # ファイルに保存
+                output_file = output_path / f"blue_only_tag_{tag_id}_{timestamp}.png"
+                plt.savefig(output_file, bbox_inches='tight', dpi=150)
+                plt.close(fig)
+                
+                logger.info(f"青色のみ軌跡を保存: {output_file} ({len(blue_points)} points)")
+            
+            logger.info(f"青色のみ表示が完了しました（出力: {output_path}）")
+            
+        except Exception as e:
+            logger.error(f"青色のみ表示中にエラーが発生: {e}")
+            import traceback
+            traceback.print_exc()

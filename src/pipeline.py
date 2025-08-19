@@ -142,7 +142,7 @@ def pipeline(
                 tag_df.to_csv(tag_csv_file, index=False)
                 logger.info(f"Tag {tag_id} の軌跡を {tag_csv_file} に保存しました")
 
-    # 推定結果をマップにプロット
+    # 推定結果をマップにプロット（4色表示）
     localizer.plot_map(
         "map/miraikan_5.bmp",
         output_dir / f"{trial_id}_{datetime}_map.png",
@@ -151,6 +151,22 @@ def pipeline(
         gpos=True,
         ground_truth_df=ground_truth_df,
     )
+    
+    # 青色のみの軌跡をCSVファイルに保存
+    if hasattr(localizer, 'save_blue_only_trajectories_to_csv'):
+        logger.info("青色のみ（LOS & GPOSから3m以内）の軌跡をCSV保存中...")
+        localizer.save_blue_only_trajectories_to_csv(output_dir, trial_id, datetime)
+    
+    # 青色のみ表示バージョンも作成
+    if hasattr(localizer, 'plot_blue_only_trajectories'):
+        logger.info("青色のみ表示（信頼できる点のみ）の軌跡を作成中...")
+        
+        # 青色のみの軌跡をプロット
+        localizer.plot_blue_only_trajectories(
+            output_dir=str(output_dir),
+            map_file="map/miraikan_5.bmp"
+        )
+        logger.info("青色のみ表示の軌跡ファイルを生成しました")
 
     # 評価
     rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)

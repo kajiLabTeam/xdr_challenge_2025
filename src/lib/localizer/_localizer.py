@@ -23,7 +23,9 @@ class Localizer(
     @require_attr_appended("positions", 1)
     def estimate(self) -> None:
         # pdr_pos = self.estimate_pdr()
-        uwb_pos = self.estimate_uwb()
+        
+        # 青色のみ推定を優先的に使用
+        uwb_pos = self.estimate_uwb_blue_only()
         # viso_pos = self.estimate_vio()
 
         # UWBの推定結果が得られた場合はそれを使用、そうでなければ前回の位置を使用
