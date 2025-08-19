@@ -7,3 +7,23 @@ demo:
   S: 15
   inipos: 41.368;-10.047;0.935
   reloadable: True
+
+demo2:
+  datafile: 002.txt
+  groundtruthfile: 002.csv
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 41.368;-10.047;0.935
+  reloadable: True
+
+demo5:
+  datafile: 005.txt
+  groundtruthfile: 005.csv
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 41.368;-10.047;0.935
+  reloadable: True
