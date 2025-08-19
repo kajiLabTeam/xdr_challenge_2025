@@ -81,8 +81,7 @@ class Visualizer(DataRecorderProtocol):
 
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
-        ax.set_title(f"UWB Position Estimation - Final Result ({len(df)} points)")
-        plt.colorbar(scatter, ax=ax, label="Time step")
+        plt.colorbar(scatter, ax=ax, label="timestamp (s)")
         plt.legend()
 
         if save:
