@@ -9,7 +9,7 @@ class UwbTData(TypedDict):
     distance: float
     aoa_azimuth: float
     aoa_elevation: float
-    nlos: float  # 0.0 = LOS, 1.0 = NLOS
+    nlos: bool
 
 
 class UwbTDataRecorder(BaseDataRecorder[UwbTData]):
@@ -21,5 +21,5 @@ class UwbTDataRecorder(BaseDataRecorder[UwbTData]):
         "distance": float,
         "aoa_azimuth": float,
         "aoa_elevation": float,
-        "nlos": float,  # 0.0 = LOS, 1.0 = NLOS
+        "nlos": bool,
     }

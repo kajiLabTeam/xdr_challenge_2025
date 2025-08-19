@@ -1,10 +1,8 @@
 from logging import Logger
-from typing import final, Dict, List, Tuple, Optional, NamedTuple, Any
+from typing import final, Optional, NamedTuple, Any
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from bisect import bisect_left
-
-
 from src.lib.recorder import DataRecorderProtocol
 from src.type import Position
 
@@ -19,14 +17,14 @@ class TagEstimate:
         confidence: float,
         distance: float,
         method: str,
-        is_los: bool = True,
+        is_nlos: bool = True,
     ):
         self.tag_id = tag_id
         self.position = position
         self.confidence = confidence
         self.distance = distance
         self.method = method  # 'UWBT' or 'UWBP'
-        self.is_los = is_los  # Line of Sight フラグ
+        self.is_nlos = is_nlos  # Non-Line of Sight フラグ
 
 
 class PositionWithLOS(NamedTuple):
@@ -35,7 +33,7 @@ class PositionWithLOS(NamedTuple):
     x: float
     y: float
     z: float
-    is_los: bool
+    is_nlos: bool
     confidence: float
     method: str  # 'UWBT' or 'UWBP'
     gpos_distance: float = 0.0  # GPOSとの距離（メートル）
@@ -49,26 +47,20 @@ class UWBLocalizer(DataRecorderProtocol):
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
 
-    def __init__(self, trial_id: str, logger: Logger):
-        super().__init__()
-        self.tag_trajectories: Dict[str, List[Position]] = (
-            {}
-        )  # タグごとの推定軌跡（互換性のため残す）
-        self.tag_trajectories_with_los: Dict[str, List[PositionWithLOS]] = (
-            {}
-        )  # LOS情報付き軌跡
-        self.tag_estimates: Dict[str, List[TagEstimate]] = {}  # タグごとの推定履歴
-        self.nlos_threshold = 0.5  # NLOS判定の閾値
-        self.max_history = 10  # 各タグの推定履歴の最大保持数
-        self.current_tag_positions: Dict[str, Position] = {}  # 各タグの現在位置
-        self.raw_measurements: Dict[str, List[PositionWithLOS]] = (
-            {}
-        )  # 生の測定値（重み付き平均なし）
-        self.uwbt_only_measurements: Dict[str, List[PositionWithLOS]] = (
-            {}
-        )  # UWBTのみの測定値
-        self.time_window_ms = 100.0  # 時間窓（ミリ秒）
-        self.max_time_diff_ms = 500.0  # 最大許容時間差（ミリ秒）
+    tag_trajectories: dict[str, list[Position]] = (
+        {}
+    )  # タグごとの推定軌跡（互換性のため残す）
+    tag_trajectories_with_los: dict[str, list[PositionWithLOS]] = {}  # LOS情報付き軌跡
+    tag_estimates: dict[str, list[TagEstimate]] = {}  # タグごとの推定履歴
+    nlos_threshold = 0.5  # NLOS判定の閾値
+    max_history = 10  # 各タグの推定履歴の最大保持数
+    current_tag_positions: dict[str, Position] = {}  # 各タグの現在位置
+    raw_measurements: dict[str, list[PositionWithLOS]] = (
+        {}
+    )  # 生の測定値（重み付き平均なし）
+    uwbt_only_measurements: dict[str, list[PositionWithLOS]] = {}  # UWBTのみの測定値
+    time_window_ms = 100.0  # 時間窓（ミリ秒）
+    max_time_diff_ms = 500.0  # 最大許容時間差（ミリ秒）
 
     @final
     def estimate_uwb(self) -> Position | None:
@@ -88,17 +80,17 @@ class UWBLocalizer(DataRecorderProtocol):
             return None
 
     @final
-    def get_tag_trajectories(self) -> Dict[str, List[Position]]:
+    def get_tag_trajectories(self) -> dict[str, list[Position]]:
         """全タグの推定軌跡を取得"""
         return self.tag_trajectories.copy()
 
     @final
-    def get_tag_trajectories_with_los(self) -> Dict[str, List[PositionWithLOS]]:
+    def get_tag_trajectories_with_los(self) -> dict[str, list[PositionWithLOS]]:
         """全タグのLOS情報付き推定軌跡を取得"""
         return self.tag_trajectories_with_los.copy()
 
     @final
-    def get_raw_measurements(self) -> Dict[str, List[PositionWithLOS]]:
+    def get_raw_measurements(self) -> dict[str, list[PositionWithLOS]]:
         """生の測定値（重み付き平均なし）を取得"""
         return self.raw_measurements.copy()
 
@@ -155,7 +147,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 blue_points = [
                     pos
                     for pos in measurements
-                    if pos.is_los and not pos.is_far_from_gpos
+                    if not pos.is_nlos and not pos.is_far_from_gpos
                 ]
 
                 if not blue_points:
@@ -269,9 +261,9 @@ class UWBLocalizer(DataRecorderProtocol):
             traceback.print_exc()
 
     @final
-    def _uwb_estimate_from_uwbt(self, tag_id: str) -> List[TagEstimate]:
+    def _uwb_estimate_from_uwbt(self, tag_id: str) -> list[TagEstimate]:
         """UWBTデータから指定タグの位置を推定"""
-        estimates = []
+        estimates: list[TagEstimate] = []
         uwbt_data = self.uwbt_datarecorder.data
 
         # 最新のデータから処理（最大10個）
@@ -280,14 +272,11 @@ class UWBLocalizer(DataRecorderProtocol):
                 continue
 
             # NLOS判定（1.0がNLOS、0.0がLOS）
-            nlos_value = data.get("nlos", 0.0)
-            is_los = nlos_value < self.nlos_threshold
+            is_nlos = data["nlos"]
 
             # NLOSでもデータを使用するが、信頼度を下げる
-            if not is_los:
-                self.logger.debug(
-                    f"UWBT - Tag {tag_id}: NLOS detected (value={nlos_value:.2f})"
-                )
+            if is_nlos:
+                self.logger.debug(f"UWBT - Tag {tag_id}: NLOS detected")
 
             # タイムスタンプベースでタグ位置を取得
             uwb_timestamp = data["sensor_timestamp"]
@@ -315,10 +304,10 @@ class UWBLocalizer(DataRecorderProtocol):
             # 信頼度計算（距離が遠いほど信頼度低下）
             confidence = 1.0 / (1.0 + distance * 0.1)
             # NLOSの場合は信頼度を下げる（1.0の場合は80%、0.0の場合は100%）
-            if is_los:
-                confidence *= 1.0  # LOSの場合は信頼度を維持
-            else:
+            if is_nlos:
                 confidence *= 0.8  # NLOSの場合は信頼度を20%低減（以前は50%だった）
+            else:
+                confidence *= 1.0  # LOSの場合は信頼度を維持
 
             estimate = TagEstimate(
                 tag_id=tag_id,
@@ -326,7 +315,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 confidence=confidence,
                 distance=distance,
                 method="UWBT",
-                is_los=is_los,
+                is_nlos=is_nlos,
             )
             estimates.append(estimate)
 
@@ -340,7 +329,7 @@ class UWBLocalizer(DataRecorderProtocol):
     @final
     def _uwb_interpolate_gpos_data(
         self, before: Any, after: Any, target_timestamp: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """2つのGPOSデータ間で補間を行う"""
         # タイムスタンプの比率を計算
         t_before = before["sensor_timestamp"]
@@ -389,7 +378,7 @@ class UWBLocalizer(DataRecorderProtocol):
     @final
     def _uwb_get_synchronized_tag_pose(
         self, tag_id: str, uwb_timestamp: float
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """UWBタイムスタンプに対応するタグ位置を取得（補間機能付き）"""
         gpos_data = self.gpos_datarecorder.data
 
@@ -513,7 +502,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 return None, None
 
     @final
-    def _uwb_estimate_from_uwbp(self, tag_id: str) -> List[TagEstimate]:
+    def _uwb_estimate_from_uwbp(self, tag_id: str) -> list[TagEstimate]:
         """UWBPデータから指定タグの位置を推定"""
         estimates = []
         uwbp_data = self.uwbp_datarecorder.data
@@ -564,7 +553,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 confidence=confidence,
                 distance=distance,
                 method="UWBP",
-                is_los=True,  # UWBPはNLOS情報なし
+                is_nlos=False,  # UWBPはNLOS情報なし
             )
             estimates.append(estimate)
 
@@ -578,7 +567,7 @@ class UWBLocalizer(DataRecorderProtocol):
     @final
     def _uwb_estimate_position_per_tag(
         self, tag_id: str
-    ) -> Optional[Tuple[Position, float, int]]:
+    ) -> Optional[tuple[Position, float, int]]:
         """指定されたタグからのデータのみを使用した位置推定"""
         # UWBTとUWBPの両方から推定を取得
         uwbt_estimates = self._uwb_estimate_from_uwbt(tag_id)
@@ -705,7 +694,7 @@ class UWBLocalizer(DataRecorderProtocol):
                         x=float(estimate.position[0]),
                         y=float(estimate.position[1]),
                         z=float(estimate.position[2]),
-                        is_los=estimate.is_los,
+                        is_nlos=estimate.is_nlos,
                         confidence=estimate.confidence,
                         method=estimate.method,
                         gpos_distance=gpos_distance,
@@ -767,7 +756,7 @@ class UWBLocalizer(DataRecorderProtocol):
                             x=position.x,
                             y=position.y,
                             z=position.z,
-                            is_los=latest_estimate.is_los,
+                            is_nlos=latest_estimate.is_nlos,
                             confidence=confidence,
                             method=latest_estimate.method,
                             gpos_distance=gpos_distance,
@@ -779,7 +768,7 @@ class UWBLocalizer(DataRecorderProtocol):
                             x=position.x,
                             y=position.y,
                             z=position.z,
-                            is_los=True,
+                            is_nlos=False,
                             confidence=confidence,
                             method="UNKNOWN",
                             gpos_distance=gpos_distance,
@@ -842,7 +831,9 @@ class UWBLocalizer(DataRecorderProtocol):
 
             # 青色の点のみを抽出
             blue_points = [
-                pos for pos in trajectory if pos.is_los and not pos.is_far_from_gpos
+                pos
+                for pos in trajectory
+                if not pos.is_nlos and not pos.is_far_from_gpos
             ]
 
             if not blue_points:

@@ -7,6 +7,11 @@ from src.type import Position
 class PositionDataRecorderProtocol(Protocol):
     positions: SafeList[Position]
 
+    def __init__(self, trial_id: str, logger: Logger):
+        raise NotImplementedError(
+            "This method should be implemented by subclasses. PositionDataRecorderProtocol.__init__"
+        )
+
     def last_position(self) -> Position:
         raise NotImplementedError(
             "This method should be implemented by subclasses. PositionDataRecorderProtocol.last_position"
@@ -20,6 +25,9 @@ class PositionDataRecorderProtocol(Protocol):
 
 class PositionDataRecorder:
     positions: SafeList[Position] = SafeList()
+
+    def __init__(self, trial_id: str, logger: Logger):
+        pass
 
     @final
     def last_position(self) -> Position:

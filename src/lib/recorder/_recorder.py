@@ -27,6 +27,11 @@ class DataRecorderProtocol(
     gpos_datarecorder: GposDataRecorder
     viso_datarecorder: VisoDataRecorder
 
+    def __init__(self, trial_id: str, logger: Logger):
+        raise NotImplementedError(
+            "This method should be implemented by subclasses. DataRecorderProtocol.__init__"
+        )
+
     def set_sensor_data(self, sensor_data: SensorData) -> None:
         raise NotImplementedError(
             "This method should be implemented by subclasses. DataRecorderProtocol.set_sensor_data"
