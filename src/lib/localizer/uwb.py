@@ -6,7 +6,6 @@ from src.lib.recorder import DataRecorderProtocol
 from src.type import Position
 import matplotlib.pyplot as plt
 from PIL import Image
-import numpy as np
 from pathlib import Path
 import time
 
