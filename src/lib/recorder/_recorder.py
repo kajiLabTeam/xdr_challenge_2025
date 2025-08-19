@@ -28,10 +28,14 @@ class DataRecorderProtocol(
     viso_datarecorder: VisoDataRecorder
 
     def set_sensor_data(self, sensor_data: SensorData) -> None:
-        raise NotImplementedError("This method should be implemented by subclasses. DataRecorderProtocol.set_sensor_data")
+        raise NotImplementedError(
+            "This method should be implemented by subclasses. DataRecorderProtocol.set_sensor_data"
+        )
 
     def clear_last_appended_data(self) -> None:
-        raise NotImplementedError("This method should be implemented by subclasses. DataRecorderProtocol.clear_last_appended_data")
+        raise NotImplementedError(
+            "This method should be implemented by subclasses. DataRecorderProtocol.clear_last_appended_data"
+        )
 
 
 class DataRecorder(PositionDataRecorder, OrientationDataRecorder):

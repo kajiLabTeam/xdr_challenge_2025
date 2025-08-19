@@ -23,7 +23,7 @@ class Localizer(
     @require_attr_appended("positions", 1)
     def estimate(self) -> None:
         # pdr_pos = self.estimate_pdr()
-        
+
         # 青色のみ推定を優先的に使用
         uwb_pos = self.estimate_uwb_blue_only()
         # viso_pos = self.estimate_vio()

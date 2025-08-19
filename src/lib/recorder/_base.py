@@ -63,7 +63,6 @@ class BaseDataRecorder[DataType]:
             return None
         return self.data[0]
 
-
     @final
     def append(self, sensor_type: SensorType, data: list[str]) -> None:
         """
