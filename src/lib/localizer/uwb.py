@@ -56,7 +56,6 @@ class UWBLocalizer(DataRecorderProtocol):
     )  # タグごとの推定軌跡（互換性のため残す）
     tag_trajectories_with_los: dict[str, list[PositionWithLOS]] = {}  # LOS情報付き軌跡
     tag_estimates: dict[str, list[TagEstimate]] = {}  # タグごとの推定履歴
-    nlos_threshold = 0.5  # NLOS判定の閾値
     max_history = 10  # 各タグの推定履歴の最大保持数
     current_tag_positions: dict[str, Position] = {}  # 各タグの現在位置
     raw_measurements: dict[str, list[PositionWithLOS]] = (
