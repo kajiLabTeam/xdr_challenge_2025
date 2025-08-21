@@ -55,7 +55,7 @@ class PDRLocalizer(DataRecorderProtocol):
         track: list[Position] = [first_position]
 
         for peak in peaks:
-            time = acce_df["app_timestamp"][peak]
+            time = acce_df["app_timestamp"].iloc[peak]
             idx = np.searchsorted(gyro_timestamps, time)
             if idx == 0:
                 gyro_i = gyro_df.index[0]
@@ -82,4 +82,4 @@ class PDRLocalizer(DataRecorderProtocol):
 
             track.append(Position(x, y, 0))
 
-        return Position(0, 0, 0)
+        return track[-1]
