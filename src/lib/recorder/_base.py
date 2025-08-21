@@ -1,4 +1,6 @@
 from typing import Any, Type, TypeVar, cast, final
+
+import pandas as pd
 from src.type import SensorType
 import logging
 
@@ -53,6 +55,10 @@ class BaseDataRecorder[DataType]:
         直接アクセスすることはできません
         """
         return self.__last_appended_data.copy()
+
+    @property
+    def df(self) -> pd.DataFrame:
+        return pd.DataFrame(self.__data)
 
     @property
     def first_data(self) -> DataType | None:
