@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 import pandas as pd
 from src.lib.utils._utils import Utils
@@ -6,7 +6,7 @@ from src.lib.utils._utils import Utils
 
 class GroundTruth:
     @staticmethod
-    @lru_cache(maxsize=None)
+    @cache
     def _groundtruth(trial_id: str) -> pd.DataFrame:
         """
         トライアルの ground truth を取得する
