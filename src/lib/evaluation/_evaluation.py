@@ -63,7 +63,7 @@ class Evaluation:
         diff = filtered_estimates.sub(filtered_merged_gt, axis=0)
         diff["r"] = np.sqrt(diff["x"] ** 2 + diff["y"] ** 2 + diff["z"] ** 2)
 
-        rmse = diff["r"].sum() / len(diff)
+        rmse = np.sqrt((diff["r"] ** 2).mean())
 
         return rmse
 
