@@ -18,7 +18,7 @@ def pipeline(
     show_plot_map: bool,
     no_save_plot_map: bool,
     immediate: bool,
-) -> None:
+) -> tuple[float | None] | None:
     """
     実行手順の定義
     """
@@ -36,7 +36,7 @@ def pipeline(
     initial_state = requester.send_state_req()
     if initial_state is None:
         logger.error("初期状態の取得に失敗しました")
-        return
+        return None
 
     logger.info(f"初期状態: {initial_state}")
     localizer.set_init_pos(initial_state.pos)
@@ -84,7 +84,7 @@ def pipeline(
     estimates_df = requester.send_estimates_req()
     if estimates_df is None:
         logger.error("推定結果の取得に失敗しました")
-        return
+        return None
 
     estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
 
@@ -109,3 +109,5 @@ def pipeline(
     # 評価
     rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
     logger.info(f"RMSE: {rmse}")
+
+    return (rmse,)
