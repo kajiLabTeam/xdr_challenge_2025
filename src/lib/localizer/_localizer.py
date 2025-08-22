@@ -42,6 +42,8 @@ class Localizer(
             self._estimate_only_uwb()
             return
 
+        raise ValueError(f"ESTIMATE_MODE が正しくありません: {Params.estimate_mode()}")
+
     @final
     def _estimate_for_competition(self) -> None:
         """
