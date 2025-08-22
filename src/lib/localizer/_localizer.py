@@ -4,7 +4,6 @@ from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorder
 from src.lib.visualizer import Visualizer
-from src.type import Position
 from .pdr import PDRLocalizer
 from .vio import VIOLocalizer
 from .uwb import UWBLocalizer
