@@ -1,4 +1,6 @@
+from scipy.stats import norm
 from pathlib import Path
+import numpy as np
 import pydantic
 import yaml
 from src.type import IniTrial, IniTrials
@@ -28,3 +30,29 @@ class Utils:
                 raise ValueError(
                     f"トライアルID '{trial_id}' が初期トライアルの設定に存在しません"
                 )
+
+    @staticmethod
+    def sigmoid(x: float, k: float, x0: float) -> float:
+        """
+        シグモイド関数
+        Args:
+            x (float): 入力値
+            k (float): 勾配
+            x0 (float): シフト
+        Returns:
+            float: 出力
+        """
+        return 1 / (1 + np.exp(k * (x - x0)))
+
+    @staticmethod
+    def normal_pdf(x: float, mu: float, sigma: float) -> float:
+        """
+        正規分布の確率密度関数
+        Args:
+            x (float): 入力値
+            mu (float): 平均
+            sigma (float): 標準偏差
+        Returns:
+            float: 確率密度
+        """
+        return norm.pdf(x, loc=mu, scale=sigma)

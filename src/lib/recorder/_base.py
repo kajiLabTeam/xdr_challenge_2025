@@ -1,4 +1,4 @@
-from typing import Any, Type, TypeVar, cast, final
+from typing import Any, Callable, Type, TypeVar, cast, final
 
 import pandas as pd
 from src.type import SensorType
@@ -9,7 +9,7 @@ DataType = TypeVar("DataType")
 
 class BaseDataRecorder[DataType]:
     key: str
-    columns: dict[str, Type[str | float | bool]]
+    columns: dict[str, Type[str | float | bool] | Callable[[str], bool]]
     __data: list[DataType]
     __last_appended_data: list[DataType]
 
@@ -58,7 +58,17 @@ class BaseDataRecorder[DataType]:
 
     @property
     def df(self) -> pd.DataFrame:
-        return pd.DataFrame(self.__data)
+        columns = list(self.columns.keys())
+        return pd.DataFrame(self.__data, columns=columns).astype(
+            {"app_timestamp": float, "sensor_timestamp": float}
+        )
+
+    @property
+    def last_appended_df(self) -> pd.DataFrame:
+        columns = list(self.columns.keys())
+        return pd.DataFrame(self.__last_appended_data, columns=columns).astype(
+            {"app_timestamp": float, "sensor_timestamp": float}
+        )
 
     @property
     def first_data(self) -> DataType | None:
