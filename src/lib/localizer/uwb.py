@@ -78,10 +78,6 @@ class UWBLocalizer(DataRecorderProtocol):
         positions = np.array([p[0] for p in posWithAccuracyList])
         accuracies = np.array([p[1] for p in posWithAccuracyList])
 
-        # TODO: 消す
-        if np.mean(accuracies) < 0.5:
-            return Position(0, 0, 0)
-
         weighted_position = np.sum(
             positions * accuracies.reshape(-1, 1), axis=0
         ) / np.sum(accuracies)
@@ -97,7 +93,7 @@ class UWBLocalizer(DataRecorderProtocol):
         self, gpos: GposData, uwbp: UwbPData
     ) -> npt.NDArray[np.float64] | None:
         """
-        GPOSとUWBデータを統合して位置情報を生成する
+        GPOSとUWBPデータを統合して位置情報を生成する
         """
         direction_vec = np.array(
             [
@@ -137,6 +133,46 @@ class UWBLocalizer(DataRecorderProtocol):
         return world_point
 
     @final
+    def _uwb_to_global_pos_by_uwbt(
+        self, gpos: GposData, uwbt: UwbTData
+    ) -> npt.NDArray[np.float64] | None:
+        """
+        GPOSとUWBTデータを統合して位置情報を生成する
+        """
+        distance = uwbt["distance"]
+        azimuth_rad = np.radians(uwbt["aoa_azimuth"])
+        elevation_rad = np.radians(uwbt["aoa_elevation"])
+
+        # ローカル座標系での相対位置
+        x = distance * np.cos(elevation_rad) * np.sin(azimuth_rad)
+        y = distance * np.cos(elevation_rad) * np.cos(azimuth_rad)
+        z = distance * np.sin(elevation_rad)
+        local_point = np.array([x, y, z])
+
+        location = np.array(
+            [
+                gpos["location_x"],
+                gpos["location_y"],
+                gpos["location_z"],
+            ]
+        )
+        quat = np.array(
+            [
+                gpos["quat_x"],
+                gpos["quat_y"],
+                gpos["quat_z"],
+                gpos["quat_w"],
+            ]
+        )
+        quat = quat / np.linalg.norm(quat)
+
+        # タグの姿勢で回転してワールド座標に変換
+        R_tag = R.from_quat(quat)
+        world_point = R_tag.apply(local_point) + location
+
+        return world_point
+
+    @final
     def _uwb_calc_accuracy(self, uwbp: UwbPData, uwbt: UwbTData) -> float:
         """
         確信度を計算する
@@ -144,6 +180,6 @@ class UWBLocalizer(DataRecorderProtocol):
         time_diff = abs(uwbp["app_timestamp"] - uwbt["app_timestamp"])
         time_diff_accuracy = Utils.sigmoid(time_diff, 5, 0.5)
         distance_accuracy = Utils.sigmoid(uwbp["distance"], 4, 2.0)
-        los_accuracy = Params.uwb_nlos_factor() if uwbt["nlos"] else 1.0
+        los_accuracy = 1.0 if not uwbt["nlos"] else Params.uwb_nlos_factor()
 
         return time_diff_accuracy * distance_accuracy * los_accuracy
