@@ -75,7 +75,7 @@ class Localizer(
         VIO のみを使用して位置を推定する(demo用)
         """
         vio_pos = self.estimate_vio()
-        self.positions.append(vio_pos if vio_pos else Position(0, 0, 0))
+        self.positions.append(vio_pos if vio_pos else self.last_position())
 
     @final
     @demo_only
@@ -84,4 +84,4 @@ class Localizer(
         UWB のみを使用して位置を推定する(demo用)
         """
         uwb_pos = self.estimate_uwb()
-        self.positions.append(uwb_pos if uwb_pos else Position(0, 0, 0))
+        self.positions.append(uwb_pos if uwb_pos else self.last_position())
