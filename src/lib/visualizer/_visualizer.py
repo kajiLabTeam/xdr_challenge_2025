@@ -3,7 +3,6 @@ import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
-from src.lib.groundtruth._groundtruth import GroundTruth
 from src.lib.recorder._recorder import DataRecorderProtocol
 
 
