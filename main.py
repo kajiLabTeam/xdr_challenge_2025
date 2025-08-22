@@ -225,10 +225,10 @@ def load_env(demo: bool) -> EnvVars | None:
 
     if demo:
         load_dotenv(dotenv_path=".env.demo", override=True)
-        os.environ["DEMO"] = True
     else:
         load_dotenv(dotenv_path=".env.competition", override=True)
-        os.environ["DEMO"] = False
+
+    os.environ["DEMO"] = str(demo)
 
     undefined_vars: list[str] = []
     vars: dict[str, str] = {}
