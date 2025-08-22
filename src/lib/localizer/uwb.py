@@ -51,9 +51,6 @@ class UWBLocalizer(DataRecorderProtocol):
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
 
-    tag_trajectories: dict[str, list[Position]] = (
-        {}
-    )  # タグごとの推定軌跡（互換性のため残す）
     tag_trajectories_with_los: dict[str, list[PositionWithLOS]] = {}  # LOS情報付き軌跡
     max_history = 10  # 各タグの推定履歴の最大保持数
     raw_measurements: dict[str, list[PositionWithLOS]] = (
@@ -78,11 +75,6 @@ class UWBLocalizer(DataRecorderProtocol):
                 return None
         except Exception:
             return None
-
-    @final
-    def get_tag_trajectories(self) -> dict[str, list[Position]]:
-        """全タグの推定軌跡を取得"""
-        return self.tag_trajectories.copy()
 
     @final
     def plot_blue_only_trajectories(
@@ -525,10 +517,12 @@ class UWBLocalizer(DataRecorderProtocol):
             for tag_id in tag_ids:
                 if tag_id not in self.raw_measurements:
                     self.raw_measurements[tag_id] = []
+                if tag_id not in self.tag_trajectories_with_los:
+                    self.tag_trajectories_with_los[tag_id] = []
 
+            uwbt_estimates = self._uwb_estimate_from_uwbt()
+            uwbp_estimates = self._uwb_estimate_from_uwbp()
             for tag_id in tag_ids:  # TODO
-                uwbt_estimates = self._uwb_estimate_from_uwbt()
-                uwbp_estimates = self._uwb_estimate_from_uwbp()
 
                 all_estimates = uwbt_estimates + uwbp_estimates
 
@@ -537,11 +531,12 @@ class UWBLocalizer(DataRecorderProtocol):
 
                 # 重み付き平均で位置を計算
                 positions = np.array([est.position for est in all_estimates])
-                weights = np.array([est.confidence for est in all_estimates])
+                confidences = np.array([est.confidence for est in all_estimates])
 
-                total_weight = np.sum(weights)
+                sum_confidences = np.sum(confidences)
                 weighted_position = (
-                    np.sum(positions * weights.reshape(-1, 1), axis=0) / total_weight
+                    np.sum(positions * confidences.reshape(-1, 1), axis=0)
+                    / sum_confidences
                 )
 
                 # Positionオブジェクトに変換
@@ -553,17 +548,6 @@ class UWBLocalizer(DataRecorderProtocol):
 
                 # 最も信頼度の高い推定を履歴に追加
                 best_estimate = max(all_estimates, key=lambda e: e.confidence)
-
-                position, confidence = final_position, total_weight  # TODO
-
-                # タグの軌跡を更新（互換性のため両方更新）
-                if tag_id not in self.tag_trajectories:
-                    self.tag_trajectories[tag_id] = []
-                self.tag_trajectories[tag_id].append(position)
-
-                # LOS情報付き軌跡を更新
-                if tag_id not in self.tag_trajectories_with_los:
-                    self.tag_trajectories_with_los[tag_id] = []
 
                 # GPOSとの距離を計算
                 gpos_distance = 0.0
@@ -583,7 +567,9 @@ class UWBLocalizer(DataRecorderProtocol):
                             latest_gpos["location_z"],
                         ]
                     )
-                    uwb_pos = np.array([position.x, position.y, position.z])
+                    uwb_pos = np.array(
+                        [final_position.x, final_position.y, final_position.z]
+                    )
 
                     # ユークリッド距離を計算
                     gpos_distance = float(np.linalg.norm(uwb_pos - gpos_pos))
@@ -592,11 +578,11 @@ class UWBLocalizer(DataRecorderProtocol):
                 # 最新の推定結果からLOS情報を取得
                 latest_estimate = best_estimate
                 position_with_los = PositionWithLOS(
-                    x=position.x,
-                    y=position.y,
-                    z=position.z,
+                    x=final_position.x,
+                    y=final_position.y,
+                    z=final_position.z,
                     is_nlos=latest_estimate.is_nlos,
-                    confidence=confidence,
+                    confidence=sum_confidences,
                     method=latest_estimate.method,
                     gpos_distance=gpos_distance,
                     is_far_from_gpos=is_far_from_gpos,
@@ -605,19 +591,19 @@ class UWBLocalizer(DataRecorderProtocol):
                 self.tag_trajectories_with_los[tag_id].append(position_with_los)
 
                 # 現在位置を更新
-                current_tag_positions[tag_id] = position
+                current_tag_positions[tag_id] = final_position
 
                 # 最も信頼度の高いタグを記録
-                if confidence > best_confidence:
-                    best_confidence = confidence
-                    best_position = position
+                if sum_confidences > best_confidence:
+                    best_confidence = sum_confidences
+                    best_position = final_position
 
-            if best_position is None:
-                if current_tag_positions:
-                    return list(current_tag_positions.values())[0]
-                return None  # TODO
+            if best_position:
+                return best_position
 
-            return best_position
+            if current_tag_positions:
+                return list(current_tag_positions.values())[0]
+            return None  # TODO
 
         except Exception as e:
             if current_tag_positions:
@@ -665,6 +651,5 @@ class UWBLocalizer(DataRecorderProtocol):
                 best_position = Position(
                     x=latest_blue_point.x, y=latest_blue_point.y, z=latest_blue_point.z
                 )
-                best_tag_id = tag_id
 
         return best_position
