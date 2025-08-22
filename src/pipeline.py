@@ -97,13 +97,8 @@ def pipeline(
         output_dir / f"{trial_id}_{datetime}_map.png",
         show=show_plot_map,
         save=not no_save_plot_map,
-        gpos=True,
+        gpos=False,
         ground_truth_df=ground_truth_df,
-    )
-
-    # 青色のみの軌跡をプロット
-    localizer.plot_blue_only_trajectories(
-        output_dir=str(output_dir), map_file="map/miraikan_5.bmp"
     )
 
     # 評価

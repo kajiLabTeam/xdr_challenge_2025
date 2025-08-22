@@ -21,7 +21,7 @@ class UwbTDataRecorder(BaseDataRecorder[UwbTData]):
         "distance": float,
         "aoa_azimuth": float,
         "aoa_elevation": float,
-        "nlos": bool,
+        "nlos": lambda x: x == "1.0",
     }
 
     _tag_ids: set[str] = set()

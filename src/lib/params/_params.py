@@ -83,3 +83,11 @@ class Params:
         UWBにおける遠距離の閾値 (メートル)
         """
         return 3.0
+
+    @staticmethod
+    @float_env_or_call("UWB_NLOS_FACTOR")
+    def uwb_nlos_factor() -> float:
+        """
+        UWBにおけるNLOSの影響を考慮するための係数
+        """
+        return 0.25
