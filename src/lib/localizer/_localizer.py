@@ -1,6 +1,7 @@
 from typing import final
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
+from src.lib.decorators.time import timer
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorder
 from src.lib.visualizer import Visualizer
@@ -22,6 +23,7 @@ class Localizer(
 
     @final
     @require_attr_appended("positions", 1)
+    @timer
     def estimate(self) -> None:
         """
         位置推定を行う
