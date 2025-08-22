@@ -2,6 +2,7 @@ from typing import final, Optional, NamedTuple, Any
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from bisect import bisect_left
+from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
 from src.type import Position
 import matplotlib.pyplot as plt
@@ -87,16 +88,6 @@ class UWBLocalizer(DataRecorderProtocol):
         return self.tag_trajectories.copy()
 
     @final
-    def get_tag_trajectories_with_los(self) -> dict[str, list[PositionWithLOS]]:
-        """全タグのLOS情報付き推定軌跡を取得"""
-        return self.tag_trajectories_with_los.copy()
-
-    @final
-    def get_raw_measurements(self) -> dict[str, list[PositionWithLOS]]:
-        """生の測定値（重み付き平均なし）を取得"""
-        return self.raw_measurements.copy()
-
-    @final
     def plot_blue_only_trajectories(
         self, output_dir: str = "output", map_file: str = "map/miraikan_5.bmp"
     ) -> None:
@@ -127,7 +118,7 @@ class UWBLocalizer(DataRecorderProtocol):
         )
 
         # 生の測定値を取得
-        raw_measurements = self.get_raw_measurements()
+        raw_measurements = self.raw_measurements.copy()
 
         if not raw_measurements:
             return
@@ -242,31 +233,28 @@ class UWBLocalizer(DataRecorderProtocol):
             plt.close(fig)
 
     @final
-    def _uwb_estimate_from_uwbt(self, tag_id: str) -> list[TagEstimate]:
+    def _uwb_estimate_from_uwbt(self) -> list[TagEstimate]:
         """UWBTデータから指定タグの位置を推定"""
         estimates: list[TagEstimate] = []
-        uwbt_data = self.uwbt_datarecorder.data
+        uwbt_data = self.uwbt_datarecorder.last_appended_data
 
         # 最新のデータから処理（最大10個）
-        for data in uwbt_data[-10:]:
-            if data["tag_id"] != tag_id:
-                continue
-
+        for data in uwbt_data:
             # NLOS判定（1.0がNLOS、0.0がLOS）
             is_nlos = data["nlos"]
 
             # タイムスタンプベースでタグ位置を取得
             uwb_timestamp = data["sensor_timestamp"]
             tag_loc, tag_quat = self._uwb_get_synchronized_tag_pose(
-                tag_id, uwb_timestamp
+                data["tag_id"], uwb_timestamp
             )
             if tag_loc is None or tag_quat is None:
                 continue
 
             # 球面座標からローカルデカルト座標への変換
             distance = data["distance"]
-            azimuth_rad = np.radians(data["aoa_azimuth"])
-            elevation_rad = np.radians(data["aoa_elevation"])
+            azimuth_rad = np.deg2rad(data["aoa_azimuth"])
+            elevation_rad = np.deg2rad(data["aoa_elevation"])
 
             # ローカル座標系での相対位置
             x = distance * np.cos(elevation_rad) * np.sin(azimuth_rad)
@@ -287,7 +275,7 @@ class UWBLocalizer(DataRecorderProtocol):
                 confidence *= 1.0  # LOSの場合は信頼度を維持
 
             estimate = TagEstimate(
-                tag_id=tag_id,
+                tag_id=data["tag_id"],
                 position=world_point,
                 confidence=confidence,
                 distance=distance,
@@ -465,20 +453,17 @@ class UWBLocalizer(DataRecorderProtocol):
                 return None, None
 
     @final
-    def _uwb_estimate_from_uwbp(self, tag_id: str) -> list[TagEstimate]:
+    def _uwb_estimate_from_uwbp(self) -> list[TagEstimate]:
         """UWBPデータから指定タグの位置を推定"""
         estimates = []
-        uwbp_data = self.uwbp_datarecorder.data
+        uwbp_data = self.uwbp_datarecorder.last_appended_data
 
         # 最新のデータから処理（最大10個）
-        for data in uwbp_data[-10:]:
-            if data["tag_id"] != tag_id:
-                continue
-
+        for data in uwbp_data:
             # タイムスタンプベースでタグ位置を取得
             uwb_timestamp = data["sensor_timestamp"]
             tag_loc, tag_quat = self._uwb_get_synchronized_tag_pose(
-                tag_id, uwb_timestamp
+                data["tag_id"], uwb_timestamp
             )
             if tag_loc is None or tag_quat is None:
                 continue
@@ -511,7 +496,7 @@ class UWBLocalizer(DataRecorderProtocol):
             confidence = 1.0 / (1.0 + distance * 0.1)
 
             estimate = TagEstimate(
-                tag_id=tag_id,
+                tag_id=data["tag_id"],
                 position=world_point,
                 confidence=confidence,
                 distance=distance,
@@ -525,11 +510,12 @@ class UWBLocalizer(DataRecorderProtocol):
     @final
     def _uwb_estimate_position_per_tag(
         self, tag_id: str
-    ) -> Optional[tuple[Position, float, int]]:
+    ) -> Optional[tuple[Position, float]]:
         """指定されたタグからのデータのみを使用した位置推定"""
+
         # UWBTとUWBPの両方から推定を取得
-        uwbt_estimates = self._uwb_estimate_from_uwbt(tag_id)
-        uwbp_estimates = self._uwb_estimate_from_uwbp(tag_id)
+        uwbt_estimates = self.__uwb_estimate_from_uwbt()
+        uwbp_estimates = self.__uwb_estimate_from_uwbp()
 
         all_estimates = uwbt_estimates + uwbp_estimates
 
@@ -558,10 +544,6 @@ class UWBLocalizer(DataRecorderProtocol):
                 z=float(weighted_position[2]),
             )
 
-            # タグの推定履歴を更新
-            if tag_id not in self.tag_estimates:
-                self.tag_estimates[tag_id] = []
-
             # 最も信頼度の高い推定を履歴に追加
             best_estimate = max(all_estimates, key=lambda e: e.confidence)
             self.tag_estimates[tag_id].append(best_estimate)
@@ -572,7 +554,7 @@ class UWBLocalizer(DataRecorderProtocol):
                     -self.max_history :
                 ]
 
-            return final_position, float(total_weight), len(all_estimates)
+            return final_position, float(total_weight)
 
         return None
 
@@ -592,71 +574,53 @@ class UWBLocalizer(DataRecorderProtocol):
             best_confidence = 0.0
             best_position = None
 
+            # 初期化
             for tag_id in tag_ids:
-                # 生の測定値を保存（重み付き平均前）
-                uwbt_estimates = self._uwb_estimate_from_uwbt(tag_id)
-                uwbp_estimates = self._uwb_estimate_from_uwbp(tag_id)
-                all_raw_estimates = uwbt_estimates + uwbp_estimates
-
-                # 生の測定値を軌跡として保存
-                if tag_id not in self.raw_measurements:
-                    self.raw_measurements[tag_id] = []
-
-                # UWBTのみの測定値を保存
                 if tag_id not in self.uwbt_only_measurements:
                     self.uwbt_only_measurements[tag_id] = []
 
-                for estimate in all_raw_estimates:
-                    # 各推定点でGPOSとの距離を計算
-                    gpos_distance = 0.0
-                    is_far_from_gpos = False
+                if tag_id not in self.raw_measurements:
+                    self.raw_measurements[tag_id] = []
 
-                    # 最新のGPOSデータを取得
-                    gpos_data = self.gpos_datarecorder.data
-                    tag_gpos_data = [d for d in gpos_data if d["object_id"] == tag_id]
+                if tag_id not in self.tag_estimates:
+                    self.tag_estimates[tag_id] = []
 
-                    if tag_gpos_data:
-                        # 最新のGPOSデータを使用
-                        latest_gpos = tag_gpos_data[-1]
-                        gpos_pos = np.array(
-                            [
-                                latest_gpos["location_x"],
-                                latest_gpos["location_y"],
-                                latest_gpos["location_z"],
-                            ]
-                        )
-                        uwb_pos = np.array(
-                            [
-                                estimate.position[0],
-                                estimate.position[1],
-                                estimate.position[2],
-                            ]
-                        )
+            for tag_id in tag_ids:  # TODO
+                # 生の測定値を保存（重み付き平均前）
+                uwbt_estimated_positions = self._uwb_estimate_from_uwbt()
+                uwbp_estimated_positions = self._uwb_estimate_from_uwbp()
+                estimated_positions = (
+                    uwbt_estimated_positions + uwbp_estimated_positions
+                )
 
-                        # ユークリッド距離を計算
-                        gpos_distance = float(np.linalg.norm(uwb_pos - gpos_pos))
-                        is_far_from_gpos = gpos_distance >= 3.0
+                for estimated_position in estimated_positions:
+                    # ユークリッド距離を計算
+                    is_far_from_gpos = (
+                        estimated_position.distance >= Params.uwb_far_distance()
+                    )
 
                     raw_position = PositionWithLOS(
-                        x=float(estimate.position[0]),
-                        y=float(estimate.position[1]),
-                        z=float(estimate.position[2]),
-                        is_nlos=estimate.is_nlos,
-                        confidence=estimate.confidence,
-                        method=estimate.method,
-                        gpos_distance=gpos_distance,
+                        x=float(estimated_position.position[0]),
+                        y=float(estimated_position.position[1]),
+                        z=float(estimated_position.position[2]),
+                        is_nlos=estimated_position.is_nlos,
+                        confidence=estimated_position.confidence,
+                        method=estimated_position.method,
+                        gpos_distance=estimated_position.distance,
                         is_far_from_gpos=is_far_from_gpos,
                     )
                     self.raw_measurements[tag_id].append(raw_position)
 
                     # UWBTのみの場合は別途保存
-                    if estimate.method == "UWBT":
+                    if estimated_position.method == "UWBT":
                         self.uwbt_only_measurements[tag_id].append(raw_position)
 
                 # 既存の重み付き平均処理
-                result = self._uwb_estimate_position_per_tag(tag_id)
+                result = self._uwb_estimate_position_per_tag(
+                    tag_id
+                )  # TODO: tag_id を消した
                 if result is not None:
-                    position, confidence, count = result
+                    position, confidence = result
 
                     # タグの軌跡を更新（互換性のため両方更新）
                     if tag_id not in self.tag_trajectories:
@@ -726,7 +690,6 @@ class UWBLocalizer(DataRecorderProtocol):
                     if confidence > best_confidence:
                         best_confidence = confidence
                         best_position = position
-                        best_tag_id = tag_id
 
             if best_position is None:
                 if self.current_tag_positions:
@@ -748,7 +711,7 @@ class UWBLocalizer(DataRecorderProtocol):
         best_tag_id = None
 
         # 重み付き平均後の青色軌跡を取得
-        tag_trajectories_with_los = self.get_tag_trajectories_with_los()
+        tag_trajectories_with_los = self.tag_trajectories_with_los.copy()
 
         for tag_id, trajectory in tag_trajectories_with_los.items():
             if not trajectory:
@@ -784,3 +747,112 @@ class UWBLocalizer(DataRecorderProtocol):
                 best_tag_id = tag_id
 
         return best_position
+
+    @final
+    def __uwb_estimate_from_uwbt(self) -> list[TagEstimate]:
+        """UWBTデータから指定タグの位置を推定"""
+        estimates: list[TagEstimate] = []
+        uwbt_data = self.uwbt_datarecorder.last_appended_data
+
+        # 最新のデータから処理（最大10個）
+        for data in uwbt_data:
+            # NLOS判定（1.0がNLOS、0.0がLOS）
+            is_nlos = data["nlos"]
+
+            # タイムスタンプベースでタグ位置を取得
+            uwb_timestamp = data["sensor_timestamp"]
+            tag_loc, tag_quat = self._uwb_get_synchronized_tag_pose(
+                data["tag_id"], uwb_timestamp
+            )
+            if tag_loc is None or tag_quat is None:
+                continue
+
+            # 球面座標からローカルデカルト座標への変換
+            distance = data["distance"]
+            azimuth_rad = np.deg2rad(data["aoa_azimuth"])
+            elevation_rad = np.deg2rad(data["aoa_elevation"])
+
+            # ローカル座標系での相対位置
+            x = distance * np.cos(elevation_rad) * np.sin(azimuth_rad)
+            y = distance * np.cos(elevation_rad) * np.cos(azimuth_rad)
+            z = distance * np.sin(elevation_rad)
+            local_point = np.array([x, y, z])
+
+            # タグの姿勢で回転してワールド座標に変換
+            R_tag = R.from_quat(tag_quat)
+            world_point = R_tag.apply(local_point) + tag_loc
+
+            # 信頼度計算（距離が遠いほど信頼度低下）
+            confidence = 1.0 / (1.0 + distance * 0.1)
+            # NLOSの場合は信頼度を下げる（1.0の場合は80%、0.0の場合は100%）
+            if is_nlos:
+                confidence *= 0.8  # NLOSの場合は信頼度を20%低減（以前は50%だった）
+            else:
+                confidence *= 1.0  # LOSの場合は信頼度を維持
+
+            estimate = TagEstimate(
+                tag_id=data["tag_id"],
+                position=world_point,
+                confidence=confidence,
+                distance=distance,
+                method="UWBT",
+                is_nlos=is_nlos,
+            )
+            estimates.append(estimate)
+
+        return estimates
+
+    @final
+    def __uwb_estimate_from_uwbp(self) -> list[TagEstimate]:
+        """UWBPデータから指定タグの位置を推定"""
+        estimates = []
+        uwbp_data = self.uwbp_datarecorder.last_appended_data
+
+        # 最新のデータから処理（最大10個）
+        for data in uwbp_data:
+            # タイムスタンプベースでタグ位置を取得
+            uwb_timestamp = data["sensor_timestamp"]
+            tag_loc, tag_quat = self._uwb_get_synchronized_tag_pose(
+                data["tag_id"], uwb_timestamp
+            )
+            if tag_loc is None or tag_quat is None:
+                continue
+
+            # 方向ベクトルと距離から位置を計算
+            distance = data["distance"]
+            direction_vec = np.array(
+                [
+                    data["direction_vec_x"],
+                    data["direction_vec_y"],
+                    data["direction_vec_z"],
+                ]
+            )
+
+            # 方向ベクトルを正規化
+            direction_norm = np.linalg.norm(direction_vec)
+            if direction_norm > 0:
+                direction_vec = direction_vec / direction_norm
+            else:
+                continue
+
+            # ローカル座標での相対位置
+            local_point = distance * direction_vec
+
+            # タグの姿勢で回転してワールド座標に変換
+            R_tag = R.from_quat(tag_quat)
+            world_point = R_tag.apply(local_point) + tag_loc
+
+            # 信頼度計算
+            confidence = 1.0 / (1.0 + distance * 0.1)
+
+            estimate = TagEstimate(
+                tag_id=data["tag_id"],
+                position=world_point,
+                confidence=confidence,
+                distance=distance,
+                method="UWBP",
+                is_nlos=False,  # UWBPはNLOS情報なし
+            )
+            estimates.append(estimate)
+
+        return estimates

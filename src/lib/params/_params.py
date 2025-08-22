@@ -75,3 +75,11 @@ class Params:
         TODO: 動的に計算するようにする
         """
         return np.deg2rad(80)
+
+    @staticmethod
+    @float_env_or_call("UWB_FAR_DISTANCE")
+    def uwb_far_distance() -> float:
+        """
+        UWBにおける遠距離の閾値 (メートル)
+        """
+        return 3.0
