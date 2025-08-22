@@ -228,6 +228,8 @@ def load_env(demo: bool) -> EnvVars | None:
     else:
         load_dotenv(dotenv_path=".env.competition", override=True)
 
+    os.environ["DEMO"] = str(demo)
+
     undefined_vars: list[str] = []
     vars: dict[str, str] = {}
 
