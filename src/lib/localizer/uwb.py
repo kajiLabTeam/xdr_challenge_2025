@@ -584,28 +584,15 @@ class UWBLocalizer(DataRecorderProtocol):
         """
         try:
             # 利用可能な全タグIDを収集
-            all_tag_ids = set()
-
-            # UWBTデータからタグIDを収集
-            for uwbt_data in self.uwbt_datarecorder.data[-20:]:
-                all_tag_ids.add(uwbt_data["tag_id"])
-
-            # UWBPデータからタグIDを収集
-            for uwbp_data in self.uwbp_datarecorder.data[-20:]:
-                all_tag_ids.add(uwbp_data["tag_id"])
-
-            if not all_tag_ids:
-                # 前回の位置を返す（最も信頼度の高いタグの位置）
-                if self.current_tag_positions:
-                    return list(self.current_tag_positions.values())[0]
-                return Position(0.0, 0.0, 0.0)
+            tag_ids = set(
+                self.uwbp_datarecorder.tag_ids | self.uwbt_datarecorder.tag_ids
+            )
 
             # 各タグごとに推定を行い、軌跡を更新
-            best_tag_id = None
             best_confidence = 0.0
             best_position = None
 
-            for tag_id in all_tag_ids:
+            for tag_id in tag_ids:
                 # 生の測定値を保存（重み付き平均前）
                 uwbt_estimates = self._uwb_estimate_from_uwbt(tag_id)
                 uwbp_estimates = self._uwb_estimate_from_uwbp(tag_id)
