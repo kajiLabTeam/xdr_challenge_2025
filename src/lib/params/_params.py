@@ -1,6 +1,8 @@
 from typing import Literal
 import numpy as np
+from src.services.env import set_env
 from src.lib.decorators.env_or_call import (
+    env_exists,
     float_env_or_call,
     bool_env_or_call,
     str_env_or_call,
@@ -91,3 +93,11 @@ class Params:
         UWBにおけるNLOSの影響を考慮するための係数
         """
         return 0.25
+
+    @staticmethod
+    @env_exists
+    def set_param(env_name: str, value: str | float | bool) -> None:
+        """
+        環境変数を設定する
+        """
+        set_env(env_name, value)

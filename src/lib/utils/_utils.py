@@ -1,3 +1,5 @@
+import logging
+import colorlog
 from scipy.stats import norm
 from pathlib import Path
 import numpy as np
@@ -56,3 +58,48 @@ class Utils:
             float: 確率密度
         """
         return norm.pdf(x, loc=mu, scale=sigma)
+
+    @staticmethod
+    def init_logging(
+        logger: logging.Logger,
+        formatter_str: str,
+        loglevel: str,
+        output_file: Path,
+    ) -> None:
+        """
+        ロギングの初期化
+        Args:
+            logger (logging.Logger): ロガー
+            formatter (logging.Formatter): フォーマッター
+            loglevel (str): ログレベル
+            output_file (Path): ログファイルのパス
+        """
+        console_handler = colorlog.StreamHandler()
+        console_handler.setFormatter(
+            colorlog.ColoredFormatter(
+                f"%(log_color)s{formatter_str}",
+                datefmt="%H:%M:%S",
+                log_colors={
+                    "DEBUG": "cyan",
+                    "INFO": "green",
+                    "WARNING": "yellow",
+                    "ERROR": "red",
+                    "CRITICAL": "bold_red",
+                },
+            )
+        )
+
+        # ファイル用ハンドラー（プレーンテキスト）
+        file_handler = logging.FileHandler(output_file, encoding="utf-8")
+        file_handler.setFormatter(
+            logging.Formatter(
+                formatter_str,
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+
+        # 既存ハンドラーをクリアして再設定
+        logger.handlers = []
+        logger.setLevel(getattr(logging, loglevel.upper(), logging.INFO))
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)

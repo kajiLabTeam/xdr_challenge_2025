@@ -374,3 +374,40 @@ class Estimate(NamedTuple):
 
 
 EstimateResult = tuple[Position, float]
+
+
+class BooleanPattern(TypedDict):
+    type: Literal["bool_pattern"]
+    patterns: list[bool]
+
+
+class NumRange(TypedDict):
+    type: Literal["num_range"]
+    min: float
+    max: float
+    step: float
+
+
+class NumPattern(TypedDict):
+    type: Literal["num_pattern"]
+    patterns: list[float]
+
+
+class StringPattern(TypedDict):
+    type: Literal["str_pattern"]
+    patterns: list[str]
+
+
+PatternType = BooleanPattern | NumRange | NumPattern | StringPattern
+GridSearchConfig = dict[str, PatternType]
+
+GridSearchPatterns = dict[str, list[str] | list[float] | list[bool]]
+GridSearchParams = dict[str, str | float | bool]
+
+
+class PipelineResult(NamedTuple):
+    """
+    パイプラインの結果を表すデータ構造
+    """
+
+    rmse: float | None

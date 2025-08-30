@@ -1,16 +1,28 @@
+from concurrent.futures import Future, ProcessPoolExecutor
 from datetime import datetime
-from threading import Thread
 import time
-from typing import cast
+from typing import Iterable, cast
+from itertools import product
 import click
 import logging
 import colorlog
 import os
 from dotenv import load_dotenv
-from src.pipeline import pipeline
-from src.type import EnvVars
+import numpy as np
+from src.lib.utils._utils import Utils
+from src.pipeline import pipeline, process_pipeline
+from src.services.env import init_env
+from src.type import (
+    EnvVars,
+    GridSearchConfig,
+    GridSearchParams,
+    GridSearchPatterns,
+    PipelineResult,
+)
 from src.api.evaalapi import app
 from pathlib import Path
+import yaml
+import jsonschema
 
 logger = colorlog.getLogger()
 
@@ -22,6 +34,18 @@ logger = colorlog.getLogger()
     "--immediate",
     is_flag=True,
     help="即時実行。EvAAL APIを使用しない (default: False)",
+)
+@click.option(
+    "-g",
+    "--gridsearch",
+    is_flag=True,
+    help="グリッドサーチモード (default: False)",
+)
+@click.option(
+    "-gt",
+    "--gridsearch-maxthreads",
+    default=10,
+    help="最大スレッド数 (default: 10)",
 )
 @click.option("-w", "--maxwait", default=0.5, help="最大待機時間 (default: 0.5秒)")
 @click.option(
@@ -64,18 +88,22 @@ def main(
     show_plot_map: bool,
     no_save_plot_map: bool,
     immediate: bool,
+    gridsearch: bool,
+    gridsearch_maxthreads: int,
 ) -> None:
     output_dir_path = init_dir(output_dir)
 
     datetime = time.strftime("%Y%m%d_%H%M%S")
-    init_logging(loglevel, output_dir_path / f"log_{datetime}.log")
+    init_logging(logger, loglevel, output_dir_path / f"log_{datetime}.log")
 
     env_vars = load_env(demo)
     if not env_vars:
         logger.error("環境変数の読み込みに失敗しました")
         return
 
-    ok = check_settings(env_vars, demo, maxwait, run_server, output_dir_path, immediate)
+    ok = check_settings(
+        env_vars, demo, maxwait, run_server, output_dir_path, immediate, gridsearch
+    )
     if not ok:
         return
 
@@ -83,23 +111,70 @@ def main(
     trial = env_vars["TRIAL_ID"]
 
     if run_server:
-        # EvAAL API を起動
-        server_thread = Thread(target=run_evaal_api_server, daemon=True, args=(logger,))
-        server_thread.start()
-        time.sleep(2)  # サーバー起動待ち
+        try:
+            # EvAAL API を起動
+            with ProcessPoolExecutor(max_workers=1) as executor:
+                executor.submit(run_evaal_api_server, logger)
+                time.sleep(2)  # サーバー起動待ち
+        except KeyboardInterrupt:
+            executor.shutdown(wait=False)
 
-    pipeline(
-        logger,
-        trial,
-        maxwait,
-        evaal_api_server,
-        output_dir_path,
-        show_plot_map,
-        no_save_plot_map,
-        immediate,
-    )
+    if not gridsearch:  # 通常モード
+        init_env()
+        pipeline(
+            logger,
+            trial,
+            maxwait,
+            evaal_api_server,
+            output_dir_path,
+            show_plot_map,
+            no_save_plot_map,
+            immediate,
+        )
+
+    else:  # グリッドサーチモード
+        gridsearch_config = load_gridsearch_config()
+        patterns = gen_patterns(gridsearch_config)
+        params_list = to_params_list(patterns)
+
+        try:
+            with ProcessPoolExecutor(max_workers=gridsearch_maxthreads) as executor:
+                futures: list[Future[tuple[PipelineResult, GridSearchParams]]] = []
+                for i, p in enumerate(params_list):
+                    f = executor.submit(
+                        process_pipeline,
+                        datetime,
+                        p,
+                        trial,
+                        output_dir_path,
+                        f"Run GridSearch Pipeline ({i + 1}/{len(params_list)})",
+                    )
+                    futures.append(f)
+
+        except KeyboardInterrupt:
+            executor.shutdown(wait=False)
+
+        results: list[tuple[PipelineResult, GridSearchParams]] = [
+            f.result() for f in futures
+        ]
+        save_gridsearch_res(results, output_dir_path / f"gridsearch_{datetime}.csv")
 
     logger.info("終了します")
+
+
+def save_gridsearch_res(
+    results: list[tuple[PipelineResult, GridSearchParams]], output_file: Path
+) -> None:
+    """
+    グリッドサーチの結果を保存する
+    """
+    results_sorted = sorted(results, key=lambda x: (x[0].rmse is None, x[0].rmse))
+    param_keys = {k for result in results for k in result[1].keys()}
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(f"RMSE,{','.join(param_keys)}\n")
+        for res, params in results_sorted:
+            f.write(f"{res.rmse},{','.join(str(params[k]) for k in param_keys)}\n")
 
 
 def run_evaal_api_server(logger: logging.Logger) -> None:
@@ -117,6 +192,7 @@ def check_settings(
     run_server: bool,
     output_dir: Path,
     immediate: bool,
+    gridsearch: bool,
 ) -> bool:
     """
     設定(環境変数, オプション)のチェック
@@ -159,6 +235,20 @@ def check_settings(
             )
             return False
 
+    if gridsearch:
+        if not immediate:
+            logger.error(
+                "グリッドサーチモードでは即時実行を有効にしてください。"
+                + "--immediate(-i) オプションを指定してください",
+            )
+            return False
+        if run_server:
+            logger.error(
+                "グリッドサーチモードではローカルサーバーを立ち上げないでください。"
+                + "--run-server(-r) オプションを外してください",
+            )
+            return False
+
     return True
 
 
@@ -180,47 +270,97 @@ def init_dir(output_dir: str) -> Path:
     return output_dir_path
 
 
-def init_logging(loglevel: str, output_file: Path) -> None:
+def init_logging(logger: logging.Logger, loglevel: str, output_file: Path) -> None:
     """
     ロギングの初期化
     Args:
+        logger (logging.Logger): ロガー
         loglevel (str): ログレベル (debug, info, warning, error, critical)
         output_dir_path (Path): 出力ディレクトリのパス
     """
-    # コンソール用ハンドラー（カラー）
-    console_handler = colorlog.StreamHandler()
-    console_handler.setFormatter(
-        colorlog.ColoredFormatter(
-            "%(log_color)s%(asctime)s [%(levelname)s] %(message)s",
-            datefmt="%H:%M:%S",
-            log_colors={
-                "DEBUG": "cyan",
-                "INFO": "green",
-                "WARNING": "yellow",
-                "ERROR": "red",
-                "CRITICAL": "bold_red",
-            },
-        )
+    Utils.init_logging(
+        logger, "%(asctime)s [%(levelname)s] %(message)s", loglevel, output_file
     )
 
-    # ファイル用ハンドラー（プレーンテキスト）
-    file_handler = logging.FileHandler(output_file, encoding="utf-8")
-    file_handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
-    )
 
-    # 既存ハンドラーをクリアして再設定
-    logger.handlers = []
-    logger.setLevel(getattr(logging, loglevel.upper(), logging.INFO))
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+def to_params_list(
+    patterns: GridSearchPatterns,
+) -> list[GridSearchParams]:
+    """
+    グリッドサーチのパターンをリストに変換する
+    """
+    keys = list(patterns.keys())
+    values_product = product(*(patterns[k] for k in keys))
+
+    # 辞書のリストとして変換
+    combinations: list[dict[str, str | float | bool]] = [
+        dict(zip(keys, cast(Iterable[str | float | bool], vals)))
+        for vals in values_product
+    ]
+
+    return combinations
+
+
+def gen_patterns(gridsearch_config: GridSearchConfig) -> GridSearchPatterns:
+    """
+    グリッドサーチのパターンを生成する
+    """
+    patterns: GridSearchPatterns = {}
+
+    for env_key, settings in gridsearch_config.items():
+        if settings["type"] == "bool_pattern":
+            patterns[env_key] = settings["patterns"]
+
+        elif settings["type"] == "str_pattern":
+            patterns[env_key] = settings["patterns"]
+
+        elif settings["type"] == "num_pattern":
+            patterns[env_key] = settings["patterns"]
+
+        elif settings["type"] == "num_range":
+            if settings["min"] >= settings["max"]:
+                message = f"{env_key} の範囲が不正です: {settings['min']} >= {settings['max']}"
+                logger.warning(message)
+                raise ValueError(message)
+
+            patterns[env_key] = [
+                n
+                for n in np.arange(
+                    settings["min"],
+                    settings["max"] + settings["step"],
+                    settings["step"],
+                ).tolist()
+            ]
+
+    return patterns
+
+
+def load_gridsearch_config(
+    filepath: str | Path = "gridsearch.yaml",
+    schema_filepath: str | Path = ".vscode/schemas/gridsearch.schema.yaml",
+) -> GridSearchConfig:
+    """
+    グリッドサーチの設定を読み込む
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        gridsearch_config = yaml.safe_load(f)
+
+    with open(schema_filepath, "r", encoding="utf-8") as f:
+        schema = yaml.safe_load(f)
+
+    try:
+        jsonschema.validate(instance=gridsearch_config, schema=schema)
+    except jsonschema.ValidationError as e:
+        message = f"gridsearch.yaml のフォーマットが不正です: {e.message}"
+        logger.error(message)
+        raise ValueError(message)
+
+    return cast(GridSearchConfig, gridsearch_config)
 
 
 def load_env(demo: bool) -> EnvVars | None:
     """
-    環境変数のチェック
+    環境変数を読み込む
     """
 
     if demo:

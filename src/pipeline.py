@@ -1,12 +1,17 @@
+import os
 import logging
 from pathlib import Path
 import time
+import colorlog
 from src.lib import Localizer, Requester, RequesterError
 from src.lib import wait_if_not_immediate
 from src.lib.evaluation._evaluation import Evaluation
 from src.lib.groundtruth._groundtruth import GroundTruth
+from src.lib.params._params import Params
 from src.lib.requester import BaseRequester, ImmediateRequester
-from src.type import SensorData, TrialState
+from src.lib.utils._utils import Utils
+from src.services.env import init_env
+from src.type import GridSearchParams, PipelineResult, SensorData, TrialState
 
 
 def pipeline(
@@ -18,7 +23,7 @@ def pipeline(
     show_plot_map: bool,
     no_save_plot_map: bool,
     immediate: bool,
-) -> tuple[float | None] | None:
+) -> PipelineResult:
     """
     実行手順の定義
     """
@@ -36,7 +41,7 @@ def pipeline(
     initial_state = requester.send_state_req()
     if initial_state is None:
         logger.error("初期状態の取得に失敗しました")
-        return None
+        return PipelineResult(rmse=None)
 
     logger.info(f"初期状態: {initial_state}")
     localizer.set_init_pos(initial_state.pos)
@@ -84,7 +89,7 @@ def pipeline(
     estimates_df = requester.send_estimates_req()
     if estimates_df is None:
         logger.error("推定結果の取得に失敗しました")
-        return None
+        return PipelineResult(rmse=None)
 
     estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
 
@@ -105,4 +110,52 @@ def pipeline(
     rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
     logger.info(f"RMSE: {rmse}")
 
-    return (rmse,)
+    return PipelineResult(rmse=rmse)
+
+
+def process_pipeline(
+    datetime: str,
+    params: GridSearchParams,
+    trial_id: str,
+    output_dir: Path,
+    excec_message: str
+) -> tuple[PipelineResult, GridSearchParams]:
+    """
+    スレッドでパイプラインを実行します
+    """
+    process_id = os.getpid()
+
+    # ロガーの初期化
+    logger = colorlog.getLogger()
+    log_file_path = output_dir / f"log_{datetime}_{process_id}.log"
+    Utils.init_logging(
+        logger,
+        f"[{process_id}] %(asctime)s [%(levelname)s] %(message)s",
+        "WARNING",
+        log_file_path,
+    )
+
+    # 環境変数を初期化
+    init_env()
+
+    # パラメータを設定
+    for key, value in params.items():
+        Params.set_param(key, value)
+
+    logger.setLevel(logging.INFO)
+    logger.info(f"{excec_message}: {params}")
+    logger.setLevel(logging.WARNING)
+
+    res = pipeline(
+        logger,
+        trial_id,
+        0,  # maxwait
+        "UNUSED",  # evaal_api_server
+        output_dir,
+        False,  # show_plot_map
+        True,  # no_save_plot_map
+        True,  # immediate
+    )
+
+    logger.info(f"パイプライン終了")
+    return (res, params)
