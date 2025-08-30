@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
-from src.type import Position
+from src.type import EstimateResult, Position
 
 
 class PDRLocalizer(DataRecorderProtocol):
@@ -12,7 +12,7 @@ class PDRLocalizer(DataRecorderProtocol):
     """
 
     @final
-    def estimate_pdr(self) -> Position:
+    def estimate_pdr(self) -> EstimateResult:
         """
         PDR による位置推定を行う
         """
@@ -82,4 +82,4 @@ class PDRLocalizer(DataRecorderProtocol):
 
             track.append(Position(x, y, 0))
 
-        return track[-1]
+        return (track[-1], 1.0)

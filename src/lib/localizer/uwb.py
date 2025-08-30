@@ -3,7 +3,7 @@ import numpy.typing as npt
 from typing import final
 from scipy.spatial.transform import Rotation as R
 from src.lib.params._params import Params
-from src.type import Position
+from src.type import EstimateResult, Position
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder.gpos import GposData
 from src.lib.recorder.uwbp import UwbPData
@@ -39,7 +39,7 @@ class UWBLocalizer(DataRecorderProtocol):
     """
 
     @final
-    def estimate_uwb(self) -> Position | None:
+    def estimate_uwb(self) -> EstimateResult:
         uwbp_data = self.uwbp_datarecorder.last_appended_data
         uwbt_data = self.uwbt_datarecorder.data[-100:]
         gpos_data = self.gpos_datarecorder.last_appended_data
@@ -73,7 +73,7 @@ class UWBLocalizer(DataRecorderProtocol):
             )
 
         if len(posWithAccuracyList) == 0:
-            return None
+            return (Position(0, 0, 0), 0.0)
 
         positions = np.array([p[0] for p in posWithAccuracyList])
         accuracies = np.array([p[1] for p in posWithAccuracyList])
@@ -82,11 +82,13 @@ class UWBLocalizer(DataRecorderProtocol):
             positions * accuracies.reshape(-1, 1), axis=0
         ) / np.sum(accuracies)
 
-        return Position(
+        position = Position(
             x=float(weighted_position[0]),
             y=float(weighted_position[1]),
             z=float(weighted_position[2]),
         )
+        accuracy = float(np.mean(accuracies))
+        return (position, accuracy)
 
     @final
     def _uwb_to_global_pos_by_uwbp(

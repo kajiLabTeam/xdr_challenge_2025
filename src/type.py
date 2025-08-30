@@ -371,3 +371,6 @@ class Estimate(NamedTuple):
             Position: 推定位置を表す Position オブジェクト
         """
         return Position(self.x, self.y, self.z)
+
+
+EstimateResult = tuple[Position, float]
