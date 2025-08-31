@@ -13,10 +13,10 @@ class PositionDataRecorderProtocol(Protocol):
 
 
 class PositionDataRecorder:
-    positions: SafeList[Position] = SafeList()
+    positions: SafeList[Position]
 
     def __init__(self, trial_id: str, logger: Logger):
-        pass
+        self.positions = SafeList()
 
     @final
     def last_position(self) -> Position:
