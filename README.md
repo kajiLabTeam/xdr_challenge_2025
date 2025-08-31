@@ -62,5 +62,5 @@ python main.py
 
 ### 例
 ```bash
-python main.py -w 0.5 -l debug -r --demo
+python main.py --demo -is
 ```
