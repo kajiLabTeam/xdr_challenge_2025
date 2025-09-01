@@ -106,8 +106,12 @@ def pipeline(
     )
 
     # 評価
-    rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
-    logger.info(f"RMSE: {rmse}")
+    if ground_truth_df is not None:
+        rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
+        logger.info(f"RMSE: {rmse}")
+    else:
+        logger.warning("Ground Truth を取得できませんでした。評価をスキップします")
+        rmse = None
 
     return PipelineResult(rmse=rmse)
 
@@ -117,7 +121,7 @@ def process_pipeline(
     params: GridSearchParams,
     trial_id: str,
     output_dir: Path,
-    excec_message: str
+    excec_message: str,
 ) -> tuple[PipelineResult, GridSearchParams]:
     """
     スレッドでパイプラインを実行します

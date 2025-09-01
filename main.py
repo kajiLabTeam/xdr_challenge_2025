@@ -197,8 +197,8 @@ def check_settings(
     """
     設定(環境変数, オプション)のチェック
     """
-    if maxwait <= 0:
-        logger.error("最大待機時間は0より大きい値を指定してください")
+    if maxwait < 0:
+        logger.error("最大待機時間は0以上の値を指定してください")
         return False
 
     if demo:
@@ -210,6 +210,11 @@ def check_settings(
         if "demo" in env_vars["TRIAL_ID"]:
             logger.warning(
                 "競技中は demo トライアルを使用しないでください。環境変数 TRIAL_ID を確認してください"
+            )
+
+        if env_vars["TRIAL_ID"] in env_vars["TEST_TRIAL_ID_LIS"]:
+            logger.warning(
+                "競技中はテストトライアルを使用しないでください。環境変数 TRIAL_ID を確認してください"
             )
 
         if "localhost" in env_vars["EVAAL_API_SERVER"]:
@@ -388,6 +393,11 @@ def load_env(demo: bool) -> EnvVars | None:
         logger.warning("TRIAL_ID の末尾に `/` を削除しました。")
     else:
         vars["TRIAL_ID"] = os.environ["TRIAL_ID"]
+
+    if "TEST_TRIAL_ID_LIS" in os.environ:
+        vars["TEST_TRIAL_ID_LIS"] = os.environ["TEST_TRIAL_ID_LIS"]
+    else:
+        vars["TEST_TRIAL_ID_LIS"] = ""
 
     if len(undefined_vars) > 0:
         logger.error(f"環境変数が設定されていません: {', '.join(undefined_vars)}")

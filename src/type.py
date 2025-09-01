@@ -264,6 +264,7 @@ class EnvVars(TypedDict):
 
     EVAAL_API_SERVER: str
     TRIAL_ID: str
+    TEST_TRIAL_ID_LIS: list[str]
 
 
 _SensorRow = tuple[SensorType, list[str]]

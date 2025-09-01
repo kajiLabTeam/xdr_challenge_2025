@@ -1,5 +1,7 @@
 from typing import final
 import numpy as np
+import pandas as pd
+from scipy.linalg import orthogonal_procrustes
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
@@ -79,7 +81,7 @@ class VIOLocalizer(DataRecorderProtocol):
         )
 
     @final
-    def _vio_initialize_direction(self, threshold: float = 6.0) -> float | None:
+    def _vio_initialize_direction(self) -> float | None:
         """
         VISO の初期方向が設定されていない場合、 プロクラステス分析で初期方向を設定する
         Args:
@@ -87,35 +89,28 @@ class VIOLocalizer(DataRecorderProtocol):
         Returns:
             float: VISO の初期方向(ラジアン)
         """
-        # 初期方向が設定されている場合
-        if self._viso_init_direction is not None:
+        viso_df = self.viso_datarecorder.df
+        gpos_df = self.gpos_datarecorder.df
+        df = pd.merge_asof(
+            viso_df,
+            gpos_df,
+            on="app_timestamp",
+            direction="nearest",
+            suffixes=("_viso", "_gpos"),
+        )
+
+        if len(df) > 4000:
             return self._viso_init_direction
 
-        gpos_data = self.gpos_datarecorder.data
-        viso_data = self.viso_datarecorder.data
-        first_gpos_data = gpos_data[0]
-        last_gpos_data = gpos_data[-1]
+        G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
+        V = df[["location_x_viso", "location_y_viso"]].to_numpy()
 
-        # 移動距離
-        distance = np.linalg.norm(
-            np.array([last_gpos_data["location_x"], last_gpos_data["location_y"]])
-            - np.array([first_gpos_data["location_x"], first_gpos_data["location_y"]])
-        )
+        R, _ = orthogonal_procrustes(V, G)
+        vec_X = G[-1] - V[0]
+        vec_Y = G[-1] - G[0]
+        cos_angle = np.dot(vec_X, vec_Y) / (np.linalg.norm(vec_X) * np.linalg.norm(vec_Y))
 
-        # {threshold}m 以上移動していない場合
-        if distance < threshold:
-            return None
-
-        # 角度を計算
-        angle_gpos = np.atan2(
-            last_gpos_data["location_y"] - first_gpos_data["location_y"],
-            last_gpos_data["location_x"] - first_gpos_data["location_x"],
-        )
-        angle_viso = np.atan2(
-            viso_data[-1]["location_y"] - viso_data[0]["location_y"],
-            viso_data[-1]["location_x"] - viso_data[0]["location_x"],
-        )
-        angle_rad = angle_gpos - angle_viso
+        angle_rad = np.arccos(np.clip(cos_angle, -1.0, 1.0))
         angle_deg = np.degrees(angle_rad)
 
         # 初期方向を設定
