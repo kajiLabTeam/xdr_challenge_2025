@@ -8,6 +8,16 @@ demo:
   inipos: 41.368;-10.047;0.935
   reloadable: True
 
+demo-e3:
+  datafile: 001-e3.txt
+  groundtruthfile: 001-e3.csv
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: -0.953284566;3.204975612;1.102339697
+  reloadable: True
+
 demo2:
   datafile: 002.txt
   groundtruthfile: 002.csv
