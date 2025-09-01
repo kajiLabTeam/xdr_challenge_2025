@@ -79,6 +79,14 @@ class Params:
         return np.deg2rad(80)
 
     @staticmethod
+    @float_env_or_call("STRIDE_SCALE")
+    def stride_scale() -> float:
+        """
+        PDRにおける歩幅計算のためのスケール係数
+        """
+        return 0.5
+
+    @staticmethod
     @float_env_or_call("UWB_FAR_DISTANCE")
     def uwb_far_distance() -> float:
         """
