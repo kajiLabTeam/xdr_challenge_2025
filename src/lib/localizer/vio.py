@@ -108,7 +108,9 @@ class VIOLocalizer(DataRecorderProtocol):
         R, _ = orthogonal_procrustes(V, G)
         vec_X = G[-1] - V[0]
         vec_Y = G[-1] - G[0]
-        cos_angle = np.dot(vec_X, vec_Y) / (np.linalg.norm(vec_X) * np.linalg.norm(vec_Y))
+        cos_angle = np.dot(vec_X, vec_Y) / (
+            np.linalg.norm(vec_X) * np.linalg.norm(vec_Y)
+        )
 
         angle_rad = np.arccos(np.clip(cos_angle, -1.0, 1.0))
         angle_deg = np.degrees(angle_rad)

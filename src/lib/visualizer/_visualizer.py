@@ -55,9 +55,7 @@ class Visualizer(DataRecorderProtocol):
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
         c = df.index * maxwait if maxwait else df.index
-        scatter = ax.scatter(
-            df.x, df.y, s=3, c=c, label="estimated", zorder=100
-        )
+        scatter = ax.scatter(df.x, df.y, s=3, c=c, label="estimated", zorder=100)
         if gpos:
             gpos_data = self.gpos_datarecorder.data
             gpos_df = pd.DataFrame(gpos_data)
