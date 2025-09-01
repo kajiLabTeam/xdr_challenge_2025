@@ -67,7 +67,6 @@ def pipeline(
             raise RequesterError("データの受信に失敗しました")
 
         except KeyboardInterrupt:
-            print()
             logger.info("Ctrl+C が押されました。処理を中断します")
             break
         except Exception as e:
