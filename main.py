@@ -47,7 +47,7 @@ logger = colorlog.getLogger()
     default=10,
     help="最大スレッド数 (default: 10)",
 )
-@click.option("-w", "--maxwait", default=0.5, help="最大待機時間 (default: 0.5秒)")
+@click.option("-w", "--maxwait", default=0, help="最大待機時間 (default: 0.5秒)")
 @click.option(
     "-l",
     "--loglevel",
