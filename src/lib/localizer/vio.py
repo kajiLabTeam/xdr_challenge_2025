@@ -12,10 +12,10 @@ class VIOLocalizer(DataRecorderProtocol):
     VIO による位置推定のためのクラス
     """
 
-    _viso_init_direction: float | None = None
-    _viso_orientations: SafeList[QOrientationWithTimestamp] = SafeList()
-
-    _viso_tmp_positions: SafeList[Position] = SafeList()
+    def __init__(self) -> None:
+        self._viso_init_direction: float | None = None
+        self._viso_orientations: SafeList[QOrientationWithTimestamp] = SafeList()
+        self._viso_tmp_positions: SafeList[Position] = SafeList()
 
     @final
     def estimate_vio(self) -> EstimateResult:

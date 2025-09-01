@@ -12,7 +12,8 @@ class OrientationDataRecorderProtocol(Protocol):
 
 
 class OrientationDataRecorder:
-    orientations: SafeList[QOrientationWithTimestamp] = SafeList()
+    def __init__(self, trial_id: str, logger: Logger):
+        self.orientations: SafeList[QOrientationWithTimestamp] = SafeList()
 
     @final
     def last_orientation(self) -> QOrientationWithTimestamp:

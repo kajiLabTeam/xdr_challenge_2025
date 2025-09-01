@@ -101,7 +101,7 @@ def pipeline(
         output_dir / f"{trial_id}_{datetime}_map.png",
         show=show_plot_map,
         save=not no_save_plot_map,
-        gpos=False,
+        gpos=True,
         ground_truth_df=ground_truth_df,
     )
 
