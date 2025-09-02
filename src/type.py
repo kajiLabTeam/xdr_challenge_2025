@@ -38,10 +38,10 @@ class PositionWithTimestamp(NamedTuple):
     位置を表すデータ構造にタイムスタンプを追加したもの
     """
 
-    timestamp: float
     x: float
     y: float
     z: float
+    timestamp: float
 
     def __repr__(self) -> str:
         return f"({self.x},{self.y},{self.z})"
