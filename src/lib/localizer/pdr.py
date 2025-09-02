@@ -88,15 +88,15 @@ class PDRLocalizer(DataRecorderProtocol):
                     gyro_i = gyro_df.index[idx - 1]
                 else:
                     gyro_i = gyro_df.index[idx]
-            step: float = detected_steps[i] if i < len(detected_steps) else detected_steps[-1]
+            step: float = (
+                detected_steps[i] if i < len(detected_steps) else detected_steps[-1]
+            )
             x = (
-                step
-                * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
+                step * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
                 + track[-1][0]
             )
             y = (
-                step
-                * np.sin(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
+                step * np.sin(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
                 + track[-1][1]
             )
             track.append(Position(x, y, 0))
