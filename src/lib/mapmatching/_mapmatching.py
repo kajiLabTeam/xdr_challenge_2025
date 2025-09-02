@@ -9,10 +9,10 @@ from src.type import Pixel, Position, PositionWithTimestamp
 
 class MapMatching(VisualizerProtocol):
 
-    MAP_RESOLUTION = 0.01
-    MAP_ORIGIN_X_IN_PIXELS = 565
-    MAP_ORIGIN_Y_IN_PIXELS = 1480
-    WALKABLE_THRESHOLD = 200
+    MAP_RESOLUTION: float = 0.01
+    MAP_ORIGIN_X_IN_PIXELS: int = 565
+    MAP_ORIGIN_Y_IN_PIXELS: int = 1480
+    WALKABLE_THRESHOLD: int = 200
 
     def __init__(self, trial_id: str, logger: Logger) -> None:
         self.map_file = Path() / "map" / "miraikan_5_custom.png"
@@ -31,20 +31,34 @@ class MapMatching(VisualizerProtocol):
         Returns:
             list[Position]: マップ上のピクセル座標のリスト
         """
+        pixels = list(map(self._world_to_pixel, positions))
         # 未確定の軌跡
         unconfirmed_trajectory: list[Pixel] = []
         # 確定した軌跡
         confirmed_trajectory: list[Pixel] = []
 
-        for i, position in enumerate(positions):
-            pixel = self._world_to_pixel(position)
+        for i, pixel in enumerate(pixels):
             unconfirmed_trajectory.append(pixel)
 
-            # if 基準位置が見つかった場合:
+            # if self._is_reference_position(i, pixels):
             #    confirmed_trajectory.extend(unconfirmed_trajectory)
             #    unconfirmed_trajectory.clear()
 
         return list(map(self._pixel_to_world, confirmed_trajectory))
+
+    def _is_reference_position(self, target_index: int, pixels: list[Pixel]) -> bool:
+        """
+        基準位置かどうかを判定する
+        Args:
+            target_index (int): 判定対象のインデックス
+            pixels (list[Pixel]): ピクセル座標のリスト
+        Returns:
+            bool: 基準位置かどうか
+        """
+        # 基準位置の判定ロジックを実装
+        raise NotImplementedError(
+            "基準位置の判定ロジックが未実装です。_is_reference_position"
+        )
 
     @final
     def _world_to_pixel(self, position: Position | PositionWithTimestamp) -> Pixel:
@@ -87,4 +101,10 @@ class MapMatching(VisualizerProtocol):
         width, height = self.map_image.size
         if not (0 <= pixel.x < width and 0 <= pixel.y < height):
             return False
-        return self.map_image.getpixel((pixel.x, pixel.y)) > self.WALKABLE_THRESHOLD
+
+        gray = self.map_image.getpixel((pixel.x, pixel.y))
+
+        if not (isinstance(gray, float) or isinstance(gray, int)):
+            raise TypeError("Gray value is not a float or int")
+
+        return gray > self.WALKABLE_THRESHOLD
