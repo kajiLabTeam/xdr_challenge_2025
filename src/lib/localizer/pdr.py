@@ -1,9 +1,45 @@
-from typing import final
+import pandas as pd
+from typing import NamedTuple, final
 import numpy as np
 from scipy import signal
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
 from src.type import EstimateResult, Position
+
+
+class Extrema(NamedTuple):
+    """
+    極大・極小の時の情報を保持するクラス
+    """
+
+    timestamp: float  # タイムスタンプ
+    is_peak: bool  # 極大・極小のフラグ
+    acce_y: float  # Y軸加速度
+    acce_z: float  # Z軸加速度
+    norm: float  # 加速度のノルム
+
+
+class ExtremaWithAngle(NamedTuple):
+    """
+    極大・極小の時の情報を保持するクラス（角度付き）
+    """
+
+    is_peak: bool  # 極大・極小のフラグ
+    timestamp: float  # タイムスタンプ
+    acce_y: float  # Y軸加速度
+    acce_z: float  # Z軸加速度
+    angle: float  # 姿勢角度
+
+
+class Step(NamedTuple):
+    """
+    一歩分の情報を保持するクラス
+    """
+
+    prev_trough: Extrema  # 加速の極小
+    prev_peak: ExtremaWithAngle  # 加速の極大
+    next_trough: Extrema  # 減速の極小
+    next_peak: ExtremaWithAngle  # 減速の極大
 
 
 class PDRLocalizer(DataRecorderProtocol):
@@ -19,85 +55,182 @@ class PDRLocalizer(DataRecorderProtocol):
 
         # サンプリング周波数の計算
         acce_fs = self.acc_datarecorder.fs
-        gyro_fs = self.gyro_datarecorder.fs
 
         # データフレームの取得
         acce_df = self.acc_datarecorder.df
         gyro_df = self.gyro_datarecorder.df
 
-        # ノルムの計算
-        acce_df["norm"] = np.sqrt(
-            acce_df["acc_x"] ** 2 + acce_df["acc_y"] ** 2 + acce_df["acc_z"] ** 2
+        # 加速度の平面ノルムの計算
+        acce_df["norm_horizontal"] = np.sqrt(
+            acce_df["acc_x"] ** 2 + acce_df["acc_y"] ** 2
         )
-
-        # 角度の計算
-        gyro_df["angle"] = np.cumsum(gyro_df["gyr_x"]) / gyro_fs
 
         # 移動平均フィルタ
         window_acc_frame = int(Params.window_acc_sec() * acce_fs)
-        window_gyro_frame = int(Params.window_gyro_sec() * gyro_fs)
-        acce_df["low_norm"] = acce_df["norm"].rolling(window=window_acc_frame).mean()
-        gyro_df["low_angle"] = gyro_df["angle"].rolling(window=window_gyro_frame).mean()
-
-        # ピーク検出
-        distance_frame = int(Params.peak_distance_sec() * acce_fs)
-        peaks, _ = signal.find_peaks(
-            acce_df["low_norm"],
-            distance=distance_frame,
-            height=Params.peak_height(),
+        acce_df["low_norm_horizontal"] = (
+            acce_df["norm_horizontal"].rolling(window=window_acc_frame).mean()
         )
 
-        gyro_timestamps = np.asarray(gyro_df["app_timestamp"].values)
-        first_position = self.positions[0]
-        if first_position is None:
-            raise ValueError("初期位置が設定されていません")
+        # 極大・極小の検出
+        extrema_distance_frame = int(Params.extrema_distance_sec() * acce_fs)
+        peak_height = Params.peak_height()
+        trough_height = Params.trough_height()
 
-        track: list[Position] = [first_position]
-        # 加速度データから歩幅の推定
-        detected_steps: list[float] = []
-        acc_norm_values = acce_df["low_norm"].values
-        for i in range(len(peaks)):
-            start_idx = peaks[i - 1] if i > 0 else 0
-            end_idx = peaks[i]
+        peaks_indexes, _ = signal.find_peaks(
+            acce_df["low_norm_horizontal"],
+            distance=extrema_distance_frame,
+            height=peak_height,
+        )
+        troughs_indexes, _ = signal.find_peaks(
+            -acce_df["low_norm_horizontal"],
+            distance=extrema_distance_frame,
+            height=trough_height,
+        )
+        extrema_indexes: list[int] = sorted([*peaks_indexes, *troughs_indexes])
 
-            range_acc = np.array(acc_norm_values[start_idx:end_idx])
-            valid_range_acc = range_acc[~np.isnan(range_acc)]
-            if len(valid_range_acc) == 0:
-                stride = detected_steps[-1] if detected_steps else Params.stride_scale()
+        # 極大・極小の情報を保持するリスト
+        extremas: list[Extrema] = [
+            Extrema(
+                is_peak=(index in peaks_indexes),
+                timestamp=acce_df.iloc[index]["app_timestamp"],
+                acce_y=acce_df.iloc[index]["acc_y"],
+                acce_z=acce_df.iloc[index]["acc_z"],
+                norm=acce_df.iloc[index]["low_norm_horizontal"],
+            )
+            for index in extrema_indexes
+        ]
+        extrema_df = pd.DataFrame(
+            extremas, columns=["timestamp", "is_peak", "acce_y", "acce_z", "norm"]
+        )
+
+        # is_peakが連続するものでグループ化(奇数番が加速、偶数番が減速)
+        extrema_df["_group"] = (
+            extrema_df["is_peak"] != extrema_df["is_peak"].shift()
+        ).cumsum()
+        picked_extrema_df = extrema_df.groupby("_group")[
+            ["_group", "timestamp", "is_peak", "acce_y", "acce_z", "norm"]
+        ].apply(self._pdr_select_frame)
+        picked_extrema_df.to_csv("__.csv")
+
+        steps: list[Step] = self._pdr_group_steps(picked_extrema_df, gyro_df)
+
+        # TODO
+
+        return (Position(0, 0, 0), 1.0)  # TODO
+
+    @final
+    def _pdr_group_steps(self, df: pd.DataFrame, gyro_df: pd.DataFrame) -> list[Step]:
+        """
+        ステップをグループ化する
+        """
+        time_diff_threshold = 1.0  # TODO: パラメータ化
+        steps: list[Step] = []
+
+        trough: pd.Series | None = None
+        peak: pd.Series | None = None
+        for i in range(0, len(df) - 1, 2):
+            target_trough = df.iloc[i]
+            target_peak = df.iloc[i + 1]
+
+            # まだトラフとピークが設定されていない場合
+            if trough is None or peak is None:
+                trough = target_trough
+                peak = target_peak
+                continue
+
+            time_diff = trough["timestamp"] - target_peak["timestamp"]
+            if time_diff < time_diff_threshold:
+                prev_trough = self._pdr_trough_df_to_extrema(trough)
+                prev_peak = self._pdr_peak_df_to_extrema(
+                    peak, gyro_df, trough["timestamp"]
+                )
+                next_trough = self._pdr_trough_df_to_extrema(target_trough)
+                next_peak = self._pdr_peak_df_to_extrema(
+                    target_peak, gyro_df, target_trough["timestamp"]
+                )
+
+                steps.append(
+                    Step(
+                        prev_trough=prev_trough,
+                        prev_peak=prev_peak,
+                        next_trough=next_trough,
+                        next_peak=next_peak,
+                    )
+                )
+                trough = None
+                peak = None
             else:
-                max_acc = np.max(np.array(valid_range_acc))
-                min_acc = np.min(np.array(valid_range_acc))
-                if max_acc - min_acc < Params.stride_threshold():
-                    stride = 0
-                else:
-                    stride = Params.stride_scale() * np.power(max_acc - min_acc, 0.25)
-            detected_steps.append(stride)
+                trough = target_trough
+                peak = target_peak
 
-        for i, peak in enumerate(peaks):
-            time = acce_df["app_timestamp"].iloc[peak]
-            idx = np.searchsorted(gyro_timestamps, time)
-            if idx == 0:
-                gyro_i = gyro_df.index[0]
-            elif idx == len(gyro_timestamps):
-                gyro_i = gyro_df.index[-1]
-            else:
-                before = gyro_timestamps[idx - 1]
-                after = gyro_timestamps[idx]
-                if abs(time - before) <= abs(time - after):
-                    gyro_i = gyro_df.index[idx - 1]
-                else:
-                    gyro_i = gyro_df.index[idx]
-            step: float = (
-                detected_steps[i] if i < len(detected_steps) else detected_steps[-1]
-            )
-            x = (
-                step * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
-                + track[-1][0]
-            )
-            y = (
-                step * np.sin(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
-                + track[-1][1]
-            )
-            track.append(Position(x, y, 0))
+        return steps
 
-        return (track[-1], 1.0)
+    @final
+    def _pdr_trough_df_to_extrema(self, s: pd.Series) -> Extrema:
+        """
+        Series から Extrema に変換する
+        """
+        return Extrema(
+            timestamp=float(s["timestamp"]),
+            is_peak=bool(s["is_peak"]),
+            acce_y=float(s["acce_y"]),
+            acce_z=float(s["acce_z"]),
+            norm=float(s["norm"]),
+        )
+
+    @final
+    def _pdr_peak_df_to_extrema(
+        self, s: pd.Series, gyro_df: pd.DataFrame, trough_timestamp: float
+    ) -> ExtremaWithAngle:
+        """
+        Series から ExtremaWithAngle に変換する
+        angle は gyro_df の trough_timestamp から s["timestamp"] までの変化量
+        """
+        filtered_gyro = gyro_df.loc[
+            (trough_timestamp <= gyro_df["app_timestamp"])
+            & (gyro_df["app_timestamp"] <= s["timestamp"])
+        ]
+        filtered_gyro = filtered_gyro - filtered_gyro.iloc[0]
+        filtered_gyro_fs = len(filtered_gyro) / (
+            filtered_gyro["app_timestamp"].max() - filtered_gyro["app_timestamp"].min()
+        )
+        angle = filtered_gyro["gyr_z"].sum() * filtered_gyro_fs
+
+        return ExtremaWithAngle(
+            is_peak=bool(s["is_peak"]),
+            timestamp=float(s["timestamp"]),
+            acce_y=float(s["acce_y"]),
+            acce_z=float(s["acce_z"]),
+            angle=angle,
+        )
+
+    @final
+    def _pdr_select_frame(
+        self, group: pd.DataFrame, threshold: float = 0.2
+    ) -> pd.DataFrame:
+        """
+        グループ内から時間とnormが適切な1フレームを選択する
+        """
+        # TODO: threshold をパラメータ化
+
+        # timestampの差
+        group["time_diff"] = group["timestamp"].diff()
+
+        if group["_group"].iloc[0] % 2 == 1:  # 奇数グループ
+            valid_index = group[group["time_diff"] >= threshold].index
+            if not valid_index.empty:
+                group = group.loc[valid_index[0] :]
+
+            # 最小のnormがある行を取得
+            min_norm_index = group["norm"].idxmin()
+
+            return group.loc[[min_norm_index]].drop(columns=["time_diff"])
+
+        else:  # 偶数グループ
+            valid_index = group[group["time_diff"] >= threshold].index
+            if not valid_index.empty:
+                group = group.loc[: valid_index[-1]]
+
+            # 最大のnormがある行を取得
+            max_norm_index = group["norm"].idxmax()
+            return group.loc[[max_norm_index]].drop(columns=["time_diff"])

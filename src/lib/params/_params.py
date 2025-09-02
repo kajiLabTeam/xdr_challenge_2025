@@ -37,14 +37,6 @@ class Params:
         return 1.0
 
     @staticmethod
-    @float_env_or_call("WINDOW_GYRO_SEC")
-    def window_gyro_sec() -> float:
-        """
-        PDRにおける平滑化時のジャイロセンサのウィンドウ幅 (秒)
-        """
-        return 1.0
-
-    @staticmethod
     @float_env_or_call("STEP")
     def step() -> float:
         """
@@ -54,10 +46,10 @@ class Params:
         return 0.4
 
     @staticmethod
-    @float_env_or_call("PEAK_DISTANCE_SEC")
-    def peak_distance_sec() -> float:
+    @float_env_or_call("EXTREMA_DISTANCE_SEC")
+    def extrema_distance_sec() -> float:
         """
-        PDRにおけるピーク検出のための距離閾値 (秒)
+        PDRにおける極大・極小の検出のための距離閾値 (秒)
         """
         return 0.5
 
@@ -65,9 +57,17 @@ class Params:
     @float_env_or_call("PEAK_HEIGHT")
     def peak_height() -> float:
         """
-        PDRにおけるピーク検出のための高さ閾値 (メートル)
+        PDRにおけるピーク(山)検出のための高さ閾値(m/s^2)
         """
         return 1.0
+
+    @staticmethod
+    @float_env_or_call("TROUGH_HEIGHT")
+    def trough_height() -> float:
+        """
+        PDRにおけるトラフ(谷)検出のための高さ閾値(m/s^2)
+        """
+        return -5.0
 
     @staticmethod
     @float_env_or_call("INIT_ANGLE_RAD")
