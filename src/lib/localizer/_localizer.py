@@ -1,7 +1,9 @@
+from logging import Logger
 from typing import final
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.decorators.time import timer
+from src.lib.mapmatching import MapMatching
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorder
 from src.lib.visualizer import Visualizer
@@ -16,10 +18,14 @@ class Localizer(
     PDRLocalizer,
     VIOLocalizer,
     UWBLocalizer,
+    MapMatching,
 ):
     """
     位置推定のためのクラス
     """
+
+    def __init__(self, trial_id: str, logger: Logger) -> None:
+        super().__init__(trial_id, logger)
 
     @final
     @require_attr_appended("positions", 1)

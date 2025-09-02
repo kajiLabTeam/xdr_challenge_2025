@@ -33,6 +33,15 @@ class Position(NamedTuple):
         return f"{self.x},{self.y},{self.z}"
 
 
+class Pixel(NamedTuple):
+    """
+    ピクセルを表すデータ構造
+    """
+
+    x: int
+    y: int
+
+
 class PositionWithTimestamp(NamedTuple):
     """
     位置を表すデータ構造にタイムスタンプを追加したもの
