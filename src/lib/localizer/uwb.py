@@ -38,14 +38,31 @@ class UWBLocalizer(DataRecorderProtocol):
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
 
+    def __init__(self) -> None:
+        self.tag_trajectories: dict[str, list[Position]] = {}
+        self.tag_estimates: dict[str, TagEstimate] = {}
+
     @final
-    def estimate_uwb(self) -> Position | None:
+    def estimate_uwb(self, tag_id: str | None = None) -> Position | None:
+        """特定のタグIDまたは全タグの統合推定を返す"""
+        # 属性が存在しない場合は初期化
+        if not hasattr(self, 'tag_trajectories'):
+            self.tag_trajectories = {}
+        if not hasattr(self, 'tag_estimates'):
+            self.tag_estimates = {}
+            
         uwbp_data = self.uwbp_datarecorder.last_appended_data
         uwbt_data = self.uwbt_datarecorder.data[-100:]
         gpos_data = self.gpos_datarecorder.last_appended_data
 
-        posWithAccuracyList: list = []
+        tag_positions: dict[str, list[tuple[np.ndarray, float]]] = {}
+        
         for uwbp in uwbp_data:
+            current_tag_id = uwbp.get("tag_id", "unknown")
+            
+            if tag_id is not None and current_tag_id != tag_id:
+                continue
+            
             nearest_uwbt = min(
                 uwbt_data,
                 key=lambda x: abs(x["app_timestamp"] - uwbp["app_timestamp"]),
@@ -65,19 +82,76 @@ class UWBLocalizer(DataRecorderProtocol):
             if pos is None:
                 continue
 
-            posWithAccuracyList.append(
+            if current_tag_id not in tag_positions:
+                tag_positions[current_tag_id] = []
+            
+            tag_positions[current_tag_id].append(
                 (
                     pos,
                     accuracy,
                 )
             )
 
-        if len(posWithAccuracyList) == 0:
+        if len(tag_positions) == 0:
             return None
 
-        positions = np.array([p[0] for p in posWithAccuracyList])
-        accuracies = np.array([p[1] for p in posWithAccuracyList])
-
+        # 各タグごとの推定位置を計算して保存
+        for tid, pos_acc_list in tag_positions.items():
+            if len(pos_acc_list) == 0:
+                continue
+            
+            positions = np.array([p[0] for p in pos_acc_list])
+            accuracies = np.array([p[1] for p in pos_acc_list])
+            
+            weighted_position = np.sum(
+                positions * accuracies.reshape(-1, 1), axis=0
+            ) / np.sum(accuracies)
+            
+            estimated_pos = Position(
+                x=float(weighted_position[0]),
+                y=float(weighted_position[1]),
+                z=float(weighted_position[2]),
+            )
+            
+            # タグごとの軌跡に追加
+            if tid not in self.tag_trajectories:
+                self.tag_trajectories[tid] = []
+            self.tag_trajectories[tid].append(estimated_pos)
+            
+            # 最新の推定を保存
+            self.tag_estimates[tid] = TagEstimate(
+                tag_id=tid,
+                position=weighted_position,
+                confidence=float(np.mean(accuracies)),
+                distance=float(np.mean([uwbp["distance"] for uwbp in uwbp_data if uwbp.get("tag_id") == tid])),
+                method="UWBP",
+                is_nlos=False
+            )
+        
+        # 特定のタグIDが指定されている場合はその推定のみ返す
+        if tag_id is not None:
+            if tag_id in self.tag_estimates:
+                est = self.tag_estimates[tag_id]
+                return Position(
+                    x=float(est.position[0]),
+                    y=float(est.position[1]),
+                    z=float(est.position[2]),
+                )
+            return None
+        
+        # tag_idが指定されていない場合は全タグの統合推定を返す
+        all_positions = []
+        all_accuracies = []
+        for tid, pos_acc_list in tag_positions.items():
+            all_positions.extend([p[0] for p in pos_acc_list])
+            all_accuracies.extend([p[1] for p in pos_acc_list])
+        
+        if len(all_positions) == 0:
+            return None
+        
+        positions = np.array(all_positions)
+        accuracies = np.array(all_accuracies)
+        
         weighted_position = np.sum(
             positions * accuracies.reshape(-1, 1), axis=0
         ) / np.sum(accuracies)
@@ -183,3 +257,40 @@ class UWBLocalizer(DataRecorderProtocol):
         los_accuracy = 1.0 if not uwbt["nlos"] else Params.uwb_nlos_factor()
 
         return time_diff_accuracy * distance_accuracy * los_accuracy
+    
+    @final
+    def _get_tag_trajectory(self, tag_id: str) -> list[Position] | None:
+        """特定のタグIDの軌跡を取得"""
+        if not hasattr(self, 'tag_trajectories'):
+            return None
+        return self.tag_trajectories.get(tag_id)
+    
+    @final
+    def _get_all_tag_trajectories(self) -> dict[str, list[Position]]:
+        """全てのタグの軌跡を取得"""
+        if not hasattr(self, 'tag_trajectories'):
+            return {}
+        return self.tag_trajectories
+    
+    @final
+    def _get_tag_estimate(self, tag_id: str) -> TagEstimate | None:
+        """特定のタグの最新推定を取得"""
+        if not hasattr(self, 'tag_estimates'):
+            return None
+        return self.tag_estimates.get(tag_id)
+    
+    @final
+    def _clear_tag_trajectory(self, tag_id: str | None = None) -> None:
+        """タグの軌跡をクリア"""
+        if not hasattr(self, 'tag_trajectories'):
+            self.tag_trajectories = {}
+        if not hasattr(self, 'tag_estimates'):
+            self.tag_estimates = {}
+            
+        if tag_id is None:
+            self.tag_trajectories.clear()
+            self.tag_estimates.clear()
+        elif tag_id in self.tag_trajectories:
+            del self.tag_trajectories[tag_id]
+            if tag_id in self.tag_estimates:
+                del self.tag_estimates[tag_id]
