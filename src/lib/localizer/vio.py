@@ -107,7 +107,17 @@ class VIOLocalizer(DataRecorderProtocol):
         G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
 
         R, _ = orthogonal_procrustes(V, G)
-        angle_rad = np.arctan2(R[1, 0], R[0, 0])
+        # -180° ~ 180° に正規化
+        angle_rad = np.arctan2(R[1, 0], R[0, 0]) % (2 * np.pi) - np.pi
+
+        vio_last_data = self.viso_datarecorder.data[-1]
+        x = vio_last_data["location_x"]
+        y = vio_last_data["location_y"]
+
+        is_inverted = y < x  # y=x の直線より下の場合は逆向きとみなす
+        if is_inverted and abs(angle_rad) < np.pi / 2:
+            angle_rad = (angle_rad + np.pi) % (2 * np.pi)
+
         angle_deg = np.degrees(angle_rad)
 
         # 初期方向を設定
