@@ -106,7 +106,7 @@ class VIOLocalizer(DataRecorderProtocol):
         V = df[["location_x_viso", "location_y_viso"]].to_numpy()
         G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
 
-        R = Utils.kabsch(V, G)
+        R, _ = orthogonal_procrustes(V, G)
         angle_rad = np.arctan2(R[1, 0], R[0, 0])
         angle_deg = np.degrees(angle_rad)
 
