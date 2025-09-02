@@ -6,6 +6,7 @@ from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
+from src.lib.utils._utils import Utils
 from src.type import EstimateResult, Position
 
 
@@ -102,17 +103,11 @@ class VIOLocalizer(DataRecorderProtocol):
         if len(df) > 4000:
             return self._viso_init_direction
 
-        G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
         V = df[["location_x_viso", "location_y_viso"]].to_numpy()
+        G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
 
         R, _ = orthogonal_procrustes(V, G)
-        vec_X = G[-1] - V[0]
-        vec_Y = G[-1] - G[0]
-        cos_angle = np.dot(vec_X, vec_Y) / (
-            np.linalg.norm(vec_X) * np.linalg.norm(vec_Y)
-        )
-
-        angle_rad = np.arccos(np.clip(cos_angle, -1.0, 1.0))
+        angle_rad = np.arctan2(R[1, 0], R[0, 0])
         angle_deg = np.degrees(angle_rad)
 
         # 初期方向を設定

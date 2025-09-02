@@ -91,10 +91,9 @@ def main(
     gridsearch: bool,
     gridsearch_maxthreads: int,
 ) -> None:
-    output_dir_path = init_dir(output_dir)
-
     datetime = time.strftime("%Y%m%d_%H%M%S")
-    init_logging(logger, loglevel, output_dir_path / f"log_{datetime}.log")
+    output_dir_path = init_dir(output_dir, datetime)
+    init_logging(logger, loglevel, output_dir_path / "logger.log")
 
     env_vars = load_env(demo)
     if not env_vars:
@@ -143,7 +142,6 @@ def main(
                 for i, p in enumerate(params_list):
                     f = executor.submit(
                         process_pipeline,
-                        datetime,
                         p,
                         trial,
                         output_dir_path,
@@ -157,7 +155,7 @@ def main(
         results: list[tuple[PipelineResult, GridSearchParams]] = [
             f.result() for f in futures
         ]
-        save_gridsearch_res(results, output_dir_path / f"gridsearch_{datetime}.csv")
+        save_gridsearch_res(results, output_dir_path / f"gridsearch_.csv")
 
     logger.info("終了します")
 
@@ -257,22 +255,29 @@ def check_settings(
     return True
 
 
-def init_dir(output_dir: str) -> Path:
+def init_dir(output_dir: str, sub_dir: str) -> Path:
     """
     出力ディレクトリを初期化する
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         logger.info(f"出力ディレクトリ '{output_dir}' を作成しました")
-    else:
-        logger.info(f"出力ディレクトリ '{output_dir}' は既に存在します")
+
+    joined_path_str = os.path.join(output_dir, sub_dir)
+    if not os.path.exists(joined_path_str):
+        os.makedirs(joined_path_str)
 
     if output_dir.endswith("/"):
         output_dir_path = Path(output_dir)
     else:
         output_dir_path = Path(output_dir + "/")
 
-    return output_dir_path
+    if sub_dir.endswith("/"):
+        joined_path = output_dir_path / sub_dir
+    else:
+        joined_path = output_dir_path / (sub_dir + "/")
+
+    return joined_path
 
 
 def init_logging(logger: logging.Logger, loglevel: str, output_file: Path) -> None:

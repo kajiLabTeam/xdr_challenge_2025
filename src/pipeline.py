@@ -117,7 +117,6 @@ def pipeline(
 
 
 def process_pipeline(
-    datetime: str,
     params: GridSearchParams,
     trial_id: str,
     output_dir: Path,
@@ -130,7 +129,7 @@ def process_pipeline(
 
     # ロガーの初期化
     logger = colorlog.getLogger()
-    log_file_path = output_dir / f"log_{datetime}_{process_id}.log"
+    log_file_path = output_dir / f"log_{process_id}.log"
     Utils.init_logging(
         logger,
         f"[{process_id}] %(asctime)s [%(levelname)s] %(message)s",
