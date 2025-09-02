@@ -57,7 +57,7 @@ class PDRLocalizer(DataRecorderProtocol):
         detected_steps: list[float] = []
         acc_norm_values = acce_df["low_norm"].values
         for i in range(len(peaks)):
-            start_idx = peaks[i - 0] if i > 0 else 0
+            start_idx = peaks[i - 1] if i > 0 else 0
             end_idx = peaks[i]
 
             range_acc = np.array(acc_norm_values[start_idx:end_idx])
@@ -68,7 +68,10 @@ class PDRLocalizer(DataRecorderProtocol):
             else:
                 max_acc = np.max(np.array(valid_range_acc))
                 min_acc = np.min(np.array(valid_range_acc))
-                stride = Params.stride_scale() * np.power(max_acc - min_acc, 0.25)
+                if max_acc - min_acc < 0.035:
+                    stride = 0
+                else:
+                    stride = Params.stride_scale() * np.power(max_acc - min_acc, 0.25)
             detected_steps.append(stride)
 
         for i, peak in enumerate(peaks):
@@ -85,7 +88,7 @@ class PDRLocalizer(DataRecorderProtocol):
                     gyro_i = gyro_df.index[idx - 1]
                 else:
                     gyro_i = gyro_df.index[idx]
-            step: float = detected_steps[i] if i < len(detected_steps) else Params.step()
+            step: float = detected_steps[i] if i < len(detected_steps) else detected_steps[-1]
             x = (
                 step
                 * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())

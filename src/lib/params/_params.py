@@ -84,7 +84,7 @@ class Params:
         """
         PDRにおける歩幅計算のためのスケール係数
         """
-        return 0.5
+        return 0.9
 
     @staticmethod
     @float_env_or_call("UWB_FAR_DISTANCE")
