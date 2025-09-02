@@ -61,14 +61,13 @@ class PDRLocalizer(DataRecorderProtocol):
             end_idx = peaks[i]
 
             range_acc = np.array(acc_norm_values[start_idx:end_idx])
-            stride = Params.stride_scale()
             valid_range_acc = range_acc[~np.isnan(range_acc)]
             if len(valid_range_acc) == 0:
                 stride = detected_steps[-1] if detected_steps else Params.stride_scale()
             else:
                 max_acc = np.max(np.array(valid_range_acc))
                 min_acc = np.min(np.array(valid_range_acc))
-                if max_acc - min_acc < 0.035:
+                if max_acc - min_acc < Params.stride_threshold():
                     stride = 0
                 else:
                     stride = Params.stride_scale() * np.power(max_acc - min_acc, 0.25)

@@ -85,6 +85,14 @@ class Params:
         PDRにおける歩幅計算のためのスケール係数
         """
         return 0.9
+    
+    @staticmethod
+    @float_env_or_call("STRIDE_THRESHOLD")
+    def stride_threshold() -> float:
+        """
+        PDRにおける歩幅計算のための閾値
+        """
+        return 0.035
 
     @staticmethod
     @float_env_or_call("UWB_FAR_DISTANCE")
