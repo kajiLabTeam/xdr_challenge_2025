@@ -22,6 +22,7 @@ class TagEstimate:
         distance: float,
         method: str,
         is_nlos: bool = True,
+        distance_confidence: float = 1.0,  # 距離ベースの信頼性
     ):
         self.tag_id = tag_id
         self.position = position
@@ -29,6 +30,8 @@ class TagEstimate:
         self.distance = distance
         self.method = method  # 'UWBT' or 'UWBP'
         self.is_nlos = is_nlos  # Non-Line of Sight フラグ
+        self.distance_confidence = distance_confidence  # 距離による信頼性
+        self.total_confidence = confidence * distance_confidence  # 統合信頼性
 
 
 class UWBLocalizer(DataRecorderProtocol):
@@ -41,15 +44,24 @@ class UWBLocalizer(DataRecorderProtocol):
     def __init__(self) -> None:
         self.tag_trajectories: dict[str, list[Position]] = {}
         self.tag_estimates: dict[str, TagEstimate] = {}
+        self.tag_priority = ["3637RLJ", "3636DWF", "3583WAA"]
+        self.current_active_tag: str | None = None
+        self.tag_switch_history: list[tuple[float, str]] = []  # (timestamp, tag_id)
 
     @final
     def estimate_uwb(self, tag_id: str | None = None) -> Position | None:
-        """特定のタグIDまたは全タグの統合推定を返す"""
+        """特定のタグIDまたは優先度に基づく単一タグの推定を返す"""
         # 属性が存在しない場合は初期化
         if not hasattr(self, 'tag_trajectories'):
             self.tag_trajectories = {}
         if not hasattr(self, 'tag_estimates'):
             self.tag_estimates = {}
+        if not hasattr(self, 'tag_priority'):
+            self.tag_priority = ["3637RLJ", "3636DWF", "3583WAA"]
+        if not hasattr(self, 'current_active_tag'):
+            self.current_active_tag = None
+        if not hasattr(self, 'tag_switch_history'):
+            self.tag_switch_history = []
             
         uwbp_data = self.uwbp_datarecorder.last_appended_data
         uwbt_data = self.uwbt_datarecorder.data[-100:]
@@ -139,28 +151,37 @@ class UWBLocalizer(DataRecorderProtocol):
                 )
             return None
         
-        # tag_idが指定されていない場合は全タグの統合推定を返す
-        all_positions = []
-        all_accuracies = []
-        for tid, pos_acc_list in tag_positions.items():
-            all_positions.extend([p[0] for p in pos_acc_list])
-            all_accuracies.extend([p[1] for p in pos_acc_list])
+        # tag_idが指定されていない場合は優先度に基づいて単一タグを選択
+        # 優先度の高いタグから順にデータがあるかチェック
+        selected_tag_id = None
+        for priority_tag in self.tag_priority:
+            if priority_tag in tag_positions and len(tag_positions[priority_tag]) > 0:
+                selected_tag_id = priority_tag
+                break
         
-        if len(all_positions) == 0:
-            return None
+        # 優先度リストにないタグがある場合は、最初に見つかったものを使用
+        if selected_tag_id is None and len(tag_positions) > 0:
+            selected_tag_id = next(iter(tag_positions.keys()))
         
-        positions = np.array(all_positions)
-        accuracies = np.array(all_accuracies)
+        # 選択されたタグの推定位置を返す
+        if selected_tag_id and selected_tag_id in self.tag_estimates:
+            est = self.tag_estimates[selected_tag_id]
+            
+            # タグが切り替わった場合は記録
+            if self.current_active_tag != selected_tag_id:
+                import time
+                self.tag_switch_history.append((time.time(), selected_tag_id))
+                if self.current_active_tag is not None:
+                    print(f"[UWB] タグ切り替え: {self.current_active_tag} → {selected_tag_id}")
+                self.current_active_tag = selected_tag_id
+            
+            return Position(
+                x=float(est.position[0]),
+                y=float(est.position[1]),
+                z=float(est.position[2]),
+            )
         
-        weighted_position = np.sum(
-            positions * accuracies.reshape(-1, 1), axis=0
-        ) / np.sum(accuracies)
-
-        return Position(
-            x=float(weighted_position[0]),
-            y=float(weighted_position[1]),
-            z=float(weighted_position[2]),
-        )
+        return None
 
     @final
     def _uwb_to_global_pos_by_uwbp(
@@ -258,39 +279,3 @@ class UWBLocalizer(DataRecorderProtocol):
 
         return time_diff_accuracy * distance_accuracy * los_accuracy
     
-    @final
-    def _get_tag_trajectory(self, tag_id: str) -> list[Position] | None:
-        """特定のタグIDの軌跡を取得"""
-        if not hasattr(self, 'tag_trajectories'):
-            return None
-        return self.tag_trajectories.get(tag_id)
-    
-    @final
-    def _get_all_tag_trajectories(self) -> dict[str, list[Position]]:
-        """全てのタグの軌跡を取得"""
-        if not hasattr(self, 'tag_trajectories'):
-            return {}
-        return self.tag_trajectories
-    
-    @final
-    def _get_tag_estimate(self, tag_id: str) -> TagEstimate | None:
-        """特定のタグの最新推定を取得"""
-        if not hasattr(self, 'tag_estimates'):
-            return None
-        return self.tag_estimates.get(tag_id)
-    
-    @final
-    def _clear_tag_trajectory(self, tag_id: str | None = None) -> None:
-        """タグの軌跡をクリア"""
-        if not hasattr(self, 'tag_trajectories'):
-            self.tag_trajectories = {}
-        if not hasattr(self, 'tag_estimates'):
-            self.tag_estimates = {}
-            
-        if tag_id is None:
-            self.tag_trajectories.clear()
-            self.tag_estimates.clear()
-        elif tag_id in self.tag_trajectories:
-            del self.tag_trajectories[tag_id]
-            if tag_id in self.tag_estimates:
-                del self.tag_estimates[tag_id]
