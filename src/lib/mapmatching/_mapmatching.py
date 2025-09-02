@@ -4,7 +4,7 @@ from typing import final
 from PIL import Image
 
 from src.lib.visualizer._visualizer import VisualizerProtocol
-from src.type import Pixel, Position
+from src.type import Pixel, Position, PositionWithTimestamp
 
 
 class MapMatching(VisualizerProtocol):
@@ -23,11 +23,31 @@ class MapMatching(VisualizerProtocol):
         except FileNotFoundError:
             self.logger.error(f"マップファイルが見つかりません: {self.map_file}")
 
-    def map_matching(self, positions: list[Position]) -> list[Position]:
-        pass
+    def map_matching(self, positions: list[PositionWithTimestamp]) -> list[Position]:
+        """
+        マップマッチング
+        Args:
+            positions (list[PositionWithTimestamp]): 実世界座標のリスト
+        Returns:
+            list[Position]: マップ上のピクセル座標のリスト
+        """
+        # 未確定の軌跡
+        unconfirmed_trajectory: list[Pixel] = []
+        # 確定した軌跡
+        confirmed_trajectory: list[Pixel] = []
+
+        for i, position in enumerate(positions):
+            pixel = self._world_to_pixel(position)
+            unconfirmed_trajectory.append(pixel)
+
+            # if 基準位置が見つかった場合:
+            #    confirmed_trajectory.extend(unconfirmed_trajectory)
+            #    unconfirmed_trajectory.clear()
+
+        return list(map(self._pixel_to_world, confirmed_trajectory))
 
     @final
-    def _world_to_pixel(self, position: Position) -> Pixel:
+    def _world_to_pixel(self, position: Position | PositionWithTimestamp) -> Pixel:
         """
         実世界座標(メートル)をピクセル座標に変換する
         Args:
