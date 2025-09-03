@@ -1,4 +1,4 @@
-from typing import final
+from typing import Literal, final
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.decorators.time import timer
@@ -22,7 +22,7 @@ class Localizer(
     位置推定のためのクラス
     """
 
-    is_initialized: bool = False
+    current_method: Literal["INIT", "PDR", "VIO", "UWB"] = "INIT"
 
     @final
     @require_attr_appended("positions", 1)
@@ -60,16 +60,24 @@ class Localizer(
 
         # UWB の信頼度が 0.5 以上の場合は UWB を使用
         if uwb_accuracy >= 0.5 and uwb_pos:
+            self.current_method = "UWB"
             self.positions.append(uwb_pos)
             return
 
         # VIO の信頼度が 0.8 以上の場合は VIO を使用 TODO: 調整
         if vio_accuracy > 0.8:
+            self.current_method = "VIO"
             self.positions.append(vio_pos)
             return
 
         # PDR の信頼度が 0.8 以上の場合は PDR を使用 TODO: 調整
         if pdr_accuracy > 0.8:
+            if self.current_method != "PDR":
+                last_time = self.acc_datarecorder.last_appended_data[-1][
+                    "app_timestamp"
+                ]
+                self.switch_to_pdr(last_time, self.last_position, 0)  # TODO: 方向の指定
+            self.current_method = "PDR"
             self.positions.append(pdr_pos)
             return
 
@@ -81,9 +89,10 @@ class Localizer(
         """
         PDR のみを使用して位置を推定する(demo用)
         """
-        if not self.is_initialized:
+        if self.current_method != "PDR":
+            self.current_method = "PDR"
             self.switch_to_pdr(0, self.first_position, Params.init_angle_rad())
-            self.is_initialized = True
+
         (pdr_pos, pdr_accuracy) = self.estimate_pdr()
         self.positions.append(pdr_pos)
 
