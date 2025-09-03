@@ -1,7 +1,6 @@
 import os
 import logging
 from pathlib import Path
-import time
 import colorlog
 from src.lib import Localizer, Requester, RequesterError
 from src.lib import wait_if_not_immediate
@@ -11,7 +10,13 @@ from src.lib.params._params import Params
 from src.lib.requester import BaseRequester, ImmediateRequester
 from src.lib.utils._utils import Utils
 from src.services.env import init_env
-from src.type import GridSearchParams, PipelineResult, SensorData, TrialState
+from src.type import (
+    GridSearchParams,
+    PipelineResult,
+    ProcessPipelineResult,
+    SensorData,
+    TrialState,
+)
 
 
 def pipeline(
@@ -23,6 +28,7 @@ def pipeline(
     show_plot_map: bool,
     no_save_plot_map: bool,
     immediate: bool,
+    plot_file_name: str = "plot.png",
 ) -> PipelineResult:
     """
     実行手順の定義
@@ -82,15 +88,13 @@ def pipeline(
                 logger.error(f"予期しないエラー: {e}", exc_info=True)
                 break
 
-    datetime = time.strftime("%Y%m%d_%H%M%S")
-
     # 推定結果を取得
     estimates_df = requester.send_estimates_req()
     if estimates_df is None:
         logger.error("推定結果の取得に失敗しました")
         return PipelineResult(rmse=None)
 
-    estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+    estimates_df.to_csv(output_dir / f"estimates.csv", index=False)
 
     # Ground Truth を取得
     ground_truth_df = GroundTruth.groundtruth(trial_id)
@@ -98,7 +102,7 @@ def pipeline(
     # 推定結果をマップにプロット
     localizer.plot_map(
         "map/miraikan_5.bmp",
-        output_dir / f"{trial_id}_{datetime}_map.png",
+        output_dir / plot_file_name,
         show=show_plot_map,
         save=not no_save_plot_map,
         gpos=True,
@@ -117,11 +121,12 @@ def pipeline(
 
 
 def process_pipeline(
+    process_i: int,
     params: GridSearchParams,
     trial_id: str,
     output_dir: Path,
     excec_message: str,
-) -> tuple[PipelineResult, GridSearchParams]:
+) -> ProcessPipelineResult:
     """
     スレッドでパイプラインを実行します
     """
@@ -157,7 +162,8 @@ def process_pipeline(
         False,  # show_plot_map
         True,  # no_save_plot_map
         True,  # immediate
+        plot_file_name=f"plot_{process_i}.png",
     )
 
     logger.info(f"パイプライン終了")
-    return (res, params)
+    return ProcessPipelineResult(process_i, res, params)

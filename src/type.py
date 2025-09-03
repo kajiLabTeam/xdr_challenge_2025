@@ -412,3 +412,13 @@ class PipelineResult(NamedTuple):
     """
 
     rmse: float | None
+
+
+class ProcessPipelineResult(NamedTuple):
+    """
+    プロセスパイプラインの結果を表すデータ構造
+    """
+
+    i: int
+    result: PipelineResult
+    params: GridSearchParams

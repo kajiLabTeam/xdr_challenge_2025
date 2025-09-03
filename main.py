@@ -18,6 +18,7 @@ from src.type import (
     GridSearchParams,
     GridSearchPatterns,
     PipelineResult,
+    ProcessPipelineResult,
 )
 from src.api.evaalapi import app
 from pathlib import Path
@@ -138,10 +139,11 @@ def main(
 
         try:
             with ProcessPoolExecutor(max_workers=gridsearch_maxthreads) as executor:
-                futures: list[Future[tuple[PipelineResult, GridSearchParams]]] = []
+                futures: list[Future[ProcessPipelineResult]] = []
                 for i, p in enumerate(params_list):
                     f = executor.submit(
                         process_pipeline,
+                        i,
                         p,
                         trial,
                         output_dir_path,
@@ -152,27 +154,31 @@ def main(
         except KeyboardInterrupt:
             executor.shutdown(wait=False)
 
-        results: list[tuple[PipelineResult, GridSearchParams]] = [
-            f.result() for f in futures
-        ]
+        results: list[ProcessPipelineResult] = [f.result() for f in futures]
         save_gridsearch_res(results, output_dir_path / f"gridsearch_.csv")
 
     logger.info("終了します")
 
 
 def save_gridsearch_res(
-    results: list[tuple[PipelineResult, GridSearchParams]], output_file: Path
+    results: list[ProcessPipelineResult], output_file: Path
 ) -> None:
     """
     グリッドサーチの結果を保存する
     """
-    results_sorted = sorted(results, key=lambda x: (x[0].rmse is None, x[0].rmse))
-    param_keys = {k for result in results for k in result[1].keys()}
+    results_sorted = sorted(results, key=lambda x: x.i)
+    param_keys = {k for result in results for k in result.params.keys()}
 
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"RMSE,{','.join(param_keys)}\n")
-        for res, params in results_sorted:
-            f.write(f"{res.rmse},{','.join(str(params[k]) for k in param_keys)}\n")
+        f.write(f"index,RMSE,{','.join(param_keys)}\n")
+        for result in results_sorted:
+            process_i = result.i
+            res = result.result
+            params = result.params
+
+            f.write(
+                f"{process_i},{res.rmse},{','.join(str(params[k]) for k in param_keys)}\n"
+            )
 
 
 def run_evaal_api_server(logger: logging.Logger) -> None:
