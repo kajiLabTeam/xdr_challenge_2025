@@ -58,6 +58,46 @@ class TimedPosition(NamedTuple):
         return Position(self.x, self.y, self.z)
 
 
+class TimedPose(NamedTuple):
+    """
+    位置・姿勢・タイムスタンプを表すデータ構造
+    """
+
+    x: float
+    y: float
+    z: float
+    yaw: float
+    timestamp: float
+
+    def __repr__(self) -> str:
+        """
+        `x,y,z,yaw` の形式で文字列を返す
+        """
+        return f"({self.x},{self.y},{self.z},{self.yaw})"
+
+    def __str__(self) -> str:
+        """
+        `x,y,yaw` の形式で文字列を返す
+        """
+        return f"{self.x},{self.y},{self.yaw}"
+
+    def to_position(self) -> Position:
+        """
+        Position オブジェクトを返す
+        Returns:
+            Position: Position オブジェクト
+        """
+        return Position(self.x, self.y, self.z)
+
+    def to_timed_position(self) -> TimedPosition:
+        """
+        TimedPosition オブジェクトを返す
+        Returns:
+            TimedPosition: TimedPosition オブジェクト
+        """
+        return TimedPosition(self.timestamp, self.x, self.y, self.z)
+
+
 class QOrientation(NamedTuple):
     """
     姿勢を表すデータ構造(クォータニオン形式)
@@ -374,7 +414,7 @@ class Estimate(NamedTuple):
         return Position(self.x, self.y, self.z)
 
 
-EstimateResult = tuple[Position, float]
+EstimateResult = tuple[TimedPose, float]
 
 
 class BooleanPattern(TypedDict):

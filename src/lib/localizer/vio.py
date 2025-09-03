@@ -7,7 +7,7 @@ from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
 from src.lib.utils._utils import Utils
-from src.type import EstimateResult, Position
+from src.type import EstimateResult, Position, TimedPose
 
 
 class VIOLocalizer(DataRecorderProtocol):
@@ -29,13 +29,14 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         try:
             viso_last_data = self.viso_datarecorder.last_appended_data[-1]
-            pos = self._vio_to_global_position(viso_last_data)
-            if pos is None:
-                return (Position(0, 0, 0), 0.0)
-            return (pos, 1.0)
+            pose = self._vio_to_global_position(viso_last_data)
+            if pose is None:
+                time = viso_last_data["app_timestamp"]
+                return (TimedPose(0, 0, 0, 0, time), 0.0)
+            return (pose, 1.0)
         except IndexError:
             self.logger.debug("VISO データがありません")
-            return (Position(0, 0, 0), 0.0)
+            return (TimedPose(0, 0, 0, 0, 0), 0.0)
 
     @final
     def estimate_vio_orientations(self) -> SafeList[QOrientationWithTimestamp]:
@@ -50,7 +51,7 @@ class VIOLocalizer(DataRecorderProtocol):
         return orientations
 
     @final
-    def _vio_to_global_position(self, data: VisoData) -> Position | None:
+    def _vio_to_global_position(self, data: VisoData) -> TimedPose | None:
         """
         グローバル位置を取得するメソッド
         初期位置・初期方向が取得できない場合は、None を返す
@@ -75,10 +76,12 @@ class VIOLocalizer(DataRecorderProtocol):
         rotated_x = pos.x * np.cos(init_dir) - pos.y * np.sin(init_dir)
         rotated_y = pos.x * np.sin(init_dir) + pos.y * np.cos(init_dir)
 
-        return Position(
+        return TimedPose(
             x=rotated_x + first_gpos_data["location_x"],
             y=rotated_y + first_gpos_data["location_y"],
             z=pos.z + first_gpos_data["location_z"],
+            yaw=0,
+            timestamp=0,
         )
 
     @final
