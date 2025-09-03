@@ -5,6 +5,7 @@ from src.lib.decorators.time import timer
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorder
 from src.lib.visualizer import Visualizer
+from src.type import Position
 from .pdr import PDRLocalizer
 from .vio import VIOLocalizer
 from .uwb import UWBLocalizer
@@ -49,15 +50,14 @@ class Localizer(
     @final
     def _estimate_for_competition(self) -> None:
         """
-        競技用の位置推定を行う。
-        TODO: accuracyの調整
+        競技用の位置推定を行う
         """
         (pdr_pos, pdr_accuracy) = self.estimate_pdr()
         (uwb_pos, uwb_accuracy) = self.estimate_uwb()
         (vio_pos, vio_accuracy) = self.estimate_vio()
 
-        # UWB の信頼度が 0.8 以上の場合は UWB を使用 TODO: 調整
-        if uwb_accuracy > 0.8:
+        # UWB の信頼度が 0.5 以上の場合は UWB を使用
+        if uwb_accuracy >= 0.5 and uwb_pos:
             self.positions.append(uwb_pos)
             return
 
@@ -97,6 +97,13 @@ class Localizer(
     def _estimate_only_uwb(self) -> None:
         """
         UWB のみを使用して位置を推定する(demo用)
+        total_confidenceが閾値を下回る場合はプロットしない
         """
         (uwb_pos, uwb_accuracy) = self.estimate_uwb()
-        self.positions.append(uwb_pos if uwb_pos else self.last_position())
+
+        # total_confidenceの閾値を下回る場合は前の位置を維持
+        if uwb_accuracy >= 0.3:
+            self.positions.append(uwb_pos)
+        else:
+            # 信頼性が低い場合は前の位置を維持（プロットされない）
+            self.positions.append(Position(0, 0, 0))
