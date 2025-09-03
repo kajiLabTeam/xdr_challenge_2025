@@ -155,6 +155,7 @@ class UWBLocalizer(DataRecorderProtocol):
             )
 
         # 特定のタグIDが指定されている場合はその推定のみ返す
+        if tag_id is not None:
             if tag_id in self.tag_estimates:
                 est = self.tag_estimates[tag_id]
                 return (Position(
@@ -197,9 +198,18 @@ class UWBLocalizer(DataRecorderProtocol):
                 self.tag_switch_history.append((time.time(), selected_tag_id))
                 if self.current_active_tag is not None:
                     print(
-                        f"[UWB] タグ切り替え: {self.current_active_tag} → {selected_tag_id}"
+                        f"[UWB] タグ切り替え: {self.current_active_tag} → {selected_tag_id} "
+                        f"(信頼性: {est.total_confidence:.3f})"
                     )
                 self.current_active_tag = selected_tag_id
+
+            # 定期的に信頼性情報をログ出力（10回に1回程度）
+            import random
+            if random.random() < 0.1:  # 10%の確率でログ出力
+                print(f"[UWB] アクティブタグ: {selected_tag_id}, "
+                      f"信頼性: {est.total_confidence:.3f} "
+                      f"(distance: {est.distance:.3f}m, "
+                      f"distance_conf: {est.distance_confidence:.3f})")
 
             return (Position(
                 x=float(est.position[0]),
