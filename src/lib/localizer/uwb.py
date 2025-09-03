@@ -131,13 +131,17 @@ class UWBLocalizer(DataRecorderProtocol):
             self.tag_trajectories[tid].append(estimated_pos)
             
             # 最新の推定を保存
+            mean_distance = float(np.mean([uwbp["distance"] for uwbp in uwbp_data if uwbp.get("tag_id") == tid]))
+            distance_conf = self._calculate_distance_confidence(mean_distance, method="sigmoid")
+            
             self.tag_estimates[tid] = TagEstimate(
                 tag_id=tid,
                 position=weighted_position,
                 confidence=float(np.mean(accuracies)),
-                distance=float(np.mean([uwbp["distance"] for uwbp in uwbp_data if uwbp.get("tag_id") == tid])),
+                distance=mean_distance,
                 method="UWBP",
-                is_nlos=False
+                is_nlos=False,
+                distance_confidence=distance_conf
             )
         
         # 特定のタグIDが指定されている場合はその推定のみ返す
@@ -151,13 +155,23 @@ class UWBLocalizer(DataRecorderProtocol):
                 )
             return None
         
-        # tag_idが指定されていない場合は優先度に基づいて単一タグを選択
+        # tag_idが指定されていない場合は優先度と信頼性に基づいて単一タグを選択
         # 優先度の高いタグから順にデータがあるかチェック
         selected_tag_id = None
+        min_confidence_threshold = 0.3  # 最低信頼性閾値
+        
         for priority_tag in self.tag_priority:
             if priority_tag in tag_positions and len(tag_positions[priority_tag]) > 0:
-                selected_tag_id = priority_tag
-                break
+                # 信頼性をチェック
+                if priority_tag in self.tag_estimates:
+                    est = self.tag_estimates[priority_tag]
+                    if est.total_confidence >= min_confidence_threshold:
+                        selected_tag_id = priority_tag
+                        break
+                else:
+                    # まだ推定がない場合は使用
+                    selected_tag_id = priority_tag
+                    break
         
         # 優先度リストにないタグがある場合は、最初に見つかったものを使用
         if selected_tag_id is None and len(tag_positions) > 0:
@@ -278,4 +292,56 @@ class UWBLocalizer(DataRecorderProtocol):
         los_accuracy = 1.0 if not uwbt["nlos"] else Params.uwb_nlos_factor()
 
         return time_diff_accuracy * distance_accuracy * los_accuracy
+    
+    @final
+    def _calculate_distance_confidence(self, distance: float, method: str = "sigmoid") -> float:
+        """
+        距離に基づく信頼性を計算
+        
+        Args:
+            distance: UWB測定距離(m)
+            method: 計算方法 ("sigmoid", "cosine", "exponential", "quadratic")
+        
+        Returns:
+            0.0〜1.0の信頼性スコア
+        """
+        if method == "sigmoid":
+            if distance <= 1.0:
+                return 1.0
+            elif distance >= 3.0:
+                return 0.01  # 完全に0にせず微小値を残す
+            else:
+                k = 3.0  # 傾きの急峻さ
+                center = 2.0  # 中心点（1と3の中間）
+                return 1.0 / (1.0 + np.exp(k * (distance - center)))
+        
+        elif method == "cosine":
+            if distance <= 1.0:
+                return 1.0
+            elif distance >= 3.0:
+                return 0.01
+            else:
+                normalized = (distance - 1.0) / 2.0  # 0~1に正規化
+                return 0.5 * (1.0 + np.cos(np.pi * normalized))
+        
+        elif method == "exponential":
+            if distance <= 1.0:
+                return 1.0
+            elif distance >= 3.0:
+                return 0.01
+            else:
+                k = 2.0  # 減衰率
+                return np.exp(-k * (distance - 1.0))
+        
+        elif method == "quadratic":
+            if distance <= 1.0:
+                return 1.0
+            elif distance >= 3.0:
+                return 0.01
+            else:
+                normalized = (distance - 1.0) / 2.0
+                return max(0.01, 1.0 - normalized ** 2)
+        
+        # デフォルトはシグモイド
+        return self._calculate_distance_confidence(distance, "sigmoid")
     
