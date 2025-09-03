@@ -1,7 +1,7 @@
 import io
 from logging import Logger
 from urllib.parse import urljoin
-from src.type import Position, SensorData, TrialState
+from src.type import Position, SensorData, TimedPose, TrialState
 import pandas as pd
 from ._base import BaseRequester
 
@@ -86,7 +86,7 @@ class Requester(BaseRequester):
 
     def send_nextdata_req(
         self,
-        position: Position | None = None,
+        pose: TimedPose | None = None,
         offline: bool = False,
         horizon: float = 0.5,
     ) -> SensorData | TrialState | None:
@@ -115,8 +115,8 @@ class Requester(BaseRequester):
         params: dict = {}
         if offline:
             params["offline"] = "true"
-        if position is not None:
-            params["position"] = str(position)
+        if pose is not None:
+            params["position"] = str(pose)
 
         res = self._get("nextdata", **params)
 

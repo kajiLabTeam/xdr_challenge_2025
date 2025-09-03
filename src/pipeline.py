@@ -15,6 +15,7 @@ from src.type import (
     PipelineResult,
     ProcessPipelineResult,
     SensorData,
+    TimedPose,
     TrialState,
 )
 
@@ -44,18 +45,26 @@ def pipeline(
     wait_if_not_immediate(immediate, maxwait)
 
     # 初期状態を取得
-    initial_state = requester.send_state_req()
-    if initial_state is None:
+    init_state = requester.send_state_req()
+    if init_state is None:
         logger.error("初期状態の取得に失敗しました")
         return PipelineResult(rmse=None)
 
-    logger.info(f"初期状態: {initial_state}")
-    localizer.set_init_pos(initial_state.pos)
+    logger.info(f"初期状態: {init_state}")
+    localizer.set_init_pose(
+        TimedPose(
+            x=init_state.pos.x,
+            y=init_state.pos.y,
+            z=init_state.pos.z,
+            yaw=0.0,
+            timestamp=0.0,
+        )
+    )
     wait_if_not_immediate(immediate, maxwait)
 
     while True:
         try:
-            recv_data = requester.send_nextdata_req(position=localizer[-1])
+            recv_data = requester.send_nextdata_req(pose=localizer.last_pose)
 
             # センサーデータを受信した場合
             if isinstance(recv_data, SensorData):

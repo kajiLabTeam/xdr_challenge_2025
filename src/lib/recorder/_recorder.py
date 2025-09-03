@@ -1,6 +1,6 @@
 from logging import Logger
 from typing import Protocol, final
-from src.type import Position, SensorData
+from src.type import SensorData, TimedPose
 from ._position import PositionDataRecorder, PositionDataRecorderProtocol
 from ._orientation import OrientationDataRecorder, OrientationDataRecorderProtocol
 from .acce import AcceDataRecorder
@@ -39,7 +39,7 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
     データの記録を行うクラス
     """
 
-    def __init__(self, trial_id: str, logger: Logger):
+    def __init__(self, trial_id: str, logger: Logger) -> None:
         """
         Args:
             trial_id (str): トライアルID
@@ -59,18 +59,18 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
         self.viso_datarecorder = VisoDataRecorder(trial_id, logger)
 
     @final
-    def set_init_pos(self, pos: Position) -> None:
+    def set_init_pose(self, pos: TimedPose) -> None:
         """
         初期位置を設定するメソッド
         """
-        if len(self.positions) > 0:
+        if len(self.poses) > 0:
             self.logger.error(
                 "初期位置は一度だけ設定できます。既に位置情報が設定されています"
             )
             return
 
         self.logger.info(f"初期位置を設定: {pos}")
-        self.positions.append(pos)
+        self.poses.append(pos)
 
     @final
     def set_sensor_data(self, sensor_data: SensorData) -> None:

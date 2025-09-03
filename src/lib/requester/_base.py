@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 
-from src.type import Position, SensorData, TrialState
+from src.type import Position, SensorData, TimedPose, TrialState
 
 
 class BaseRequester(ABC):
@@ -52,7 +52,7 @@ class BaseRequester(ABC):
     @abstractmethod
     def send_nextdata_req(
         self,
-        position: Position | None = None,
+        pose: TimedPose | None = None,
         offline: bool = False,
         horizon: float = 0.5,
     ) -> SensorData | TrialState | None:
@@ -71,7 +71,7 @@ class BaseRequester(ABC):
         全てのセンサーデータが一括で返されます。
 
         Args:
-            position (Position | None): クライアントが算出した現在位置。Noneの場合は送信しません。
+            pose (TimedPose | None): クライアントが算出した位置・方向情報。Noneの場合は送信しません。
             offline (bool): オフラインモードであるかどうか。デフォルトはFalse。
             horizon (float): センサーデータの取得時間範囲。オンラインモードでのみ使用されます。
         Returns:

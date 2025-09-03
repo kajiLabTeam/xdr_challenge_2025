@@ -38,7 +38,7 @@ class Visualizer(DataRecorderProtocol):
 
         src_dir = Path().resolve()
         bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
-        df = pd.DataFrame(self.positions, columns=["x", "y", "z"])
+        df = pd.DataFrame(self.poses, columns=["x", "y", "z", "yaw", "timestamp"])
 
         height, width = bitmap_array.shape[:2]
         width_m = width / map_ppm

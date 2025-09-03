@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
-from src.type import EstimateResult, Position, PositionWithTimestamp
+from src.type import EstimateResult, TimedPose
 
 
 class PDRLocalizer(DataRecorderProtocol):
@@ -11,39 +11,33 @@ class PDRLocalizer(DataRecorderProtocol):
     PDR による位置推定のためのクラス
     """
 
-    def __init__(self) -> None:
-        self._pdr_start_timestamp: float = 0.0
-        self._pdr_init_pos: Position | None = None
-        self._pdr_init_direction: float | None = None
-
     @final
     def estimate_pdr(self) -> EstimateResult:
         """
         PDR による位置推定を行う
         """
-        if self._pdr_init_pos is None or self._pdr_init_direction is None:
+        if self._pdr_init_pose is None or self._pdr_init_direction is None:
             raise ValueError("PDR の開始位置または開始方向が設定されていません。")
 
         trajectory = self._pdr_estimate_pdr_within_range(
-            init_pos=self._pdr_init_pos,
+            init_pose=self._pdr_init_pose,
             init_direction=self._pdr_init_direction,
             start_time=self._pdr_start_timestamp,
         )
 
         if len(trajectory) == 0:
-            return (Position(0, 0, 0), 0.0)
+            time = self.acc_datarecorder.last_appended_data[-1]["app_timestamp"]
+            return (TimedPose(x=0, y=0, z=0, yaw=0, timestamp=time), 0.0)
 
-        last_z = self.last_position.z
-        position = Position(x=trajectory[-1].x, y=trajectory[-1].y, z=last_z)
-        return (position, 1.0)
+        return (trajectory[-1], 1.0)
 
     @final
     def _pdr_estimate_pdr_within_range(
         self,
-        init_pos: Position,
+        init_pose: TimedPose,
         init_direction: float,
         start_time: float,
-    ) -> list[PositionWithTimestamp]:
+    ) -> list[TimedPose]:
         """
         指定した時間範囲内での PDR による位置推定を行う
         """
@@ -80,9 +74,7 @@ class PDRLocalizer(DataRecorderProtocol):
         )
 
         gyro_timestamps = np.asarray(gyro_df["app_timestamp"].values)
-        trajectory: list[PositionWithTimestamp] = [
-            PositionWithTimestamp(timestamp=0, x=init_pos.x, y=init_pos.y, z=init_pos.z)
-        ]
+        trajectory: list[TimedPose] = [init_pose]
 
         # 加速度データから歩幅の推定
         detected_steps: list[float] = []
@@ -129,17 +121,17 @@ class PDRLocalizer(DataRecorderProtocol):
                 step * np.sin(gyro_df["angle"][gyro_i] + init_direction)
                 + trajectory[-1].y
             )
-            trajectory.append(PositionWithTimestamp(timestamp=0, x=x, y=y, z=0))
+            trajectory.append(TimedPose(timestamp=0, x=x, y=y, z=0, yaw=0))
 
         return trajectory
 
     @final
     def switch_to_pdr(
-        self, timestamp: float, init_pos: Position, init_direction: float
+        self, timestamp: float, init_pose: TimedPose, init_direction: float
     ) -> None:
         """
         PDR切り替え時の初期設定を行う
         """
         self._pdr_start_timestamp = timestamp
-        self._pdr_init_pos = init_pos
+        self._pdr_init_pose = init_pose
         self._pdr_init_direction = init_direction

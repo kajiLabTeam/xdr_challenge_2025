@@ -1,5 +1,5 @@
 from src.lib.recorder.gpos import GposData
-from src.type import Position, PositionWithTimestamp
+from src.type import Position, TimedPosition
 
 
 class GposService:
@@ -15,11 +15,11 @@ class GposService:
         )
 
     @staticmethod
-    def to_position_with_timestamp(data: GposData) -> PositionWithTimestamp:
+    def to_position_with_timestamp(data: GposData) -> TimedPosition:
         """
-        GPOS データから PositionWithTimestamp オブジェクトを生成する
+        GPOS データから TimedPosition オブジェクトを生成する
         """
-        return PositionWithTimestamp(
+        return TimedPosition(
             x=data["location_x"],
             y=data["location_y"],
             z=data["location_z"],
