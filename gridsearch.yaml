@@ -1,0 +1,22 @@
+WINDOW_ACC_SEC:
+  type: num_range
+  min: 0.1
+  max: 1.1
+  step: 1.0
+WINDOW_GYRO_SEC:
+  type: num_range
+  min: 0.1
+  max: 1.1
+  step: 1.0
+STRIDE_SCALE:
+  type: num_range
+  min: 0.76
+  max: 1.0
+  step: 0.02
+
+# STEP:
+# PEAK_DISTANCE_SEC:
+# PEAK_HEIGHT:
+# INIT_ANGLE_RAD:
+# UWB_FAR_DISTANCE:
+# UWB_NLOS_FACTOR:

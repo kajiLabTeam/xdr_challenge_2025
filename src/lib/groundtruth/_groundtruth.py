@@ -19,8 +19,11 @@ class GroundTruth:
         return df
 
     @staticmethod
-    def groundtruth(trial_id: str) -> pd.DataFrame:
+    def groundtruth(trial_id: str) -> pd.DataFrame | None:
         """
         トライアルの ground truth を取得する
         """
-        return GroundTruth._groundtruth(trial_id).copy()
+        try:
+            return GroundTruth._groundtruth(trial_id).copy()
+        except:
+            return None

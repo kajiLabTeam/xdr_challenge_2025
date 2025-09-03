@@ -10,6 +10,7 @@ class Evaluation:
     ) -> float | None:
         """
         推定結果と Ground Truth を比較して評価する
+        (0,0,0) の推定値は無視する
         """
         missing_estimates = Evaluation._check_df_types(
             estimates_df,
@@ -54,7 +55,8 @@ class Evaluation:
             direction="nearest",
         )
 
-        valid_mask = ~merged_gt_df[["x", "y", "z"]].isna().any(axis=1)
+        nonzero_mask = sorted_estimates_df[["x", "y", "z"]].ne(0).any(axis=1)
+        valid_mask = ~merged_gt_df[["x", "y", "z"]].isna().any(axis=1) & nonzero_mask
         filtered_estimates = sorted_estimates_df[["x", "y", "z"]][valid_mask]
         filtered_merged_gt = merged_gt_df[["x", "y", "z"]][valid_mask]
         if filtered_estimates.empty or filtered_merged_gt.empty:

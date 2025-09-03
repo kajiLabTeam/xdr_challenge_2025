@@ -10,16 +10,13 @@ DataType = TypeVar("DataType")
 class BaseDataRecorder[DataType]:
     key: str
     columns: dict[str, Type[str | float | bool] | Callable[[str], bool]]
-    __data: list[DataType]
-    __last_appended_data: list[DataType]
 
-    @final
     def __init__(self, trial_id: str, logger: logging.Logger):
         self.trial_id = trial_id
         self.logger = logger
 
-        self.__data = []
-        self.__last_appended_data = []
+        self.__data: list[DataType] = []
+        self.__last_appended_data: list[DataType] = []
 
     @final
     def __init_subclass__(cls, **kwargs: Any):

@@ -1,4 +1,5 @@
 from functools import cache
+from logging import Logger
 from typing import TypedDict, final
 from ._base import BaseDataRecorder
 
@@ -25,7 +26,10 @@ class UwbPDataRecorder(BaseDataRecorder[UwbPData]):
         "direction_vec_z": float,
     }
 
-    _tag_ids: set[str] = set()
+    def __init__(self, trial_id: str, logger: Logger) -> None:
+        super().__init__(trial_id, logger)
+
+        self._tag_ids: set[str] = set()
 
     @final
     @property

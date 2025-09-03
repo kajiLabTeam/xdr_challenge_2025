@@ -50,17 +50,29 @@ class Localizer(
     def _estimate_for_competition(self) -> None:
         """
         競技用の位置推定を行う。
-        TODO: 実装
+        TODO: accuracyの調整
         """
-        # pdr_pos = self.estimate_pdr()
+        (pdr_pos, pdr_accuracy) = self.estimate_pdr()
+        (uwb_pos, uwb_accuracy) = self.estimate_uwb()
+        (vio_pos, vio_accuracy) = self.estimate_vio()
 
-        # 青色のみ推定を優先的に使用
-        # uwb_pos = self.estimate_uwb()
-        viso_pos = self.estimate_vio()
+        # UWB の信頼度が 0.8 以上の場合は UWB を使用 TODO: 調整
+        if uwb_accuracy > 0.8:
+            self.positions.append(uwb_pos)
+            return
 
-        # UWBの推定結果が得られた場合はそれを使用、そうでなければ前回の位置を使用
+        # VIO の信頼度が 0.8 以上の場合は VIO を使用 TODO: 調整
+        if vio_accuracy > 0.8:
+            self.positions.append(vio_pos)
+            return
+
+        # PDR の信頼度が 0.8 以上の場合は PDR を使用 TODO: 調整
+        if pdr_accuracy > 0.8:
+            self.positions.append(pdr_pos)
+            return
+
         last_pos = self.last_position()
-        self.positions.append(viso_pos if viso_pos else last_pos)
+        self.positions.append(vio_pos if vio_pos else last_pos)
 
     @final
     @demo_only
@@ -68,7 +80,7 @@ class Localizer(
         """
         PDR のみを使用して位置を推定する(demo用)
         """
-        pdr_pos = self.estimate_pdr()
+        (pdr_pos, pdr_accuracy) = self.estimate_pdr()
         self.positions.append(pdr_pos)
 
     @final
@@ -77,7 +89,7 @@ class Localizer(
         """
         VIO のみを使用して位置を推定する(demo用)
         """
-        vio_pos = self.estimate_vio()
+        (vio_pos, vio_accuracy) = self.estimate_vio()
         self.positions.append(vio_pos if vio_pos else self.last_position())
 
     @final
@@ -86,5 +98,5 @@ class Localizer(
         """
         UWB のみを使用して位置を推定する(demo用)
         """
-        uwb_pos = self.estimate_uwb()
+        (uwb_pos, uwb_accuracy) = self.estimate_uwb()
         self.positions.append(uwb_pos if uwb_pos else self.last_position())

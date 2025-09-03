@@ -55,19 +55,17 @@ class Visualizer(DataRecorderProtocol):
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
         c = df.index * maxwait if maxwait else df.index
-        scatter = ax.scatter(
-            df.x, df.y, s=3, c=c, label="location (estimated)", zorder=100
-        )
+        scatter = ax.scatter(df.x, df.y, s=3, c=c, label="estimated", zorder=100)
         if gpos:
             gpos_data = self.gpos_datarecorder.data
             gpos_df = pd.DataFrame(gpos_data)
             ax.scatter(
                 gpos_df["location_x"],
                 gpos_df["location_y"],
-                s=3,
+                s=1,
                 c="red",
                 alpha=0.2,
-                label="location (GPOS)",
+                label="GPOS",
                 zorder=0,
             )
 
@@ -78,7 +76,7 @@ class Visualizer(DataRecorderProtocol):
                 s=3,
                 c="black",
                 alpha=0.2,
-                label="location (ground truth)",
+                label="ground truth",
                 zorder=50,
             )
 

@@ -1,10 +1,13 @@
 from typing import final
 import numpy as np
+import pandas as pd
+from scipy.linalg import orthogonal_procrustes
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
-from src.type import Position
+from src.lib.utils._utils import Utils
+from src.type import EstimateResult, Position
 
 
 class VIOLocalizer(DataRecorderProtocol):
@@ -12,13 +15,13 @@ class VIOLocalizer(DataRecorderProtocol):
     VIO による位置推定のためのクラス
     """
 
-    _viso_init_direction: float | None = None
-    _viso_orientations: SafeList[QOrientationWithTimestamp] = SafeList()
-
-    _viso_tmp_positions: SafeList[Position] = SafeList()
+    def __init__(self) -> None:
+        self._viso_init_direction: float | None = None
+        self._viso_orientations: SafeList[QOrientationWithTimestamp] = SafeList()
+        self._viso_tmp_positions: SafeList[Position] = SafeList()
 
     @final
-    def estimate_vio(self) -> Position | None:
+    def estimate_vio(self) -> EstimateResult:
         """
         VIO による位置推定を行うメソッド
         Returns:
@@ -26,10 +29,13 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         try:
             viso_last_data = self.viso_datarecorder.last_appended_data[-1]
-            return self._vio_to_global_position(viso_last_data)
+            pos = self._vio_to_global_position(viso_last_data)
+            if pos is None:
+                return (Position(0, 0, 0), 0.0)
+            return (pos, 1.0)
         except IndexError:
             self.logger.debug("VISO データがありません")
-            return None
+            return (Position(0, 0, 0), 0.0)
 
     @final
     def estimate_vio_orientations(self) -> SafeList[QOrientationWithTimestamp]:
@@ -76,7 +82,7 @@ class VIOLocalizer(DataRecorderProtocol):
         )
 
     @final
-    def _vio_initialize_direction(self, threshold: float = 6.0) -> float | None:
+    def _vio_initialize_direction(self) -> float | None:
         """
         VISO の初期方向が設定されていない場合、 プロクラステス分析で初期方向を設定する
         Args:
@@ -84,35 +90,34 @@ class VIOLocalizer(DataRecorderProtocol):
         Returns:
             float: VISO の初期方向(ラジアン)
         """
-        # 初期方向が設定されている場合
-        if self._viso_init_direction is not None:
+        viso_df = self.viso_datarecorder.df
+        gpos_df = self.gpos_datarecorder.df
+        df = pd.merge_asof(
+            viso_df,
+            gpos_df,
+            on="app_timestamp",
+            direction="nearest",
+            suffixes=("_viso", "_gpos"),
+        )
+
+        if len(df) > 4000:
             return self._viso_init_direction
 
-        gpos_data = self.gpos_datarecorder.data
-        viso_data = self.viso_datarecorder.data
-        first_gpos_data = gpos_data[0]
-        last_gpos_data = gpos_data[-1]
+        V = df[["location_x_viso", "location_y_viso"]].to_numpy()
+        G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
 
-        # 移動距離
-        distance = np.linalg.norm(
-            np.array([last_gpos_data["location_x"], last_gpos_data["location_y"]])
-            - np.array([first_gpos_data["location_x"], first_gpos_data["location_y"]])
-        )
+        R, _ = orthogonal_procrustes(V, G)
+        # -180° ~ 180° に正規化
+        angle_rad = np.arctan2(R[1, 0], R[0, 0]) % (2 * np.pi) - np.pi
 
-        # {threshold}m 以上移動していない場合
-        if distance < threshold:
-            return None
+        vio_last_data = self.viso_datarecorder.data[-1]
+        x = vio_last_data["location_x"]
+        y = vio_last_data["location_y"]
 
-        # 角度を計算
-        angle_gpos = np.atan2(
-            last_gpos_data["location_y"] - first_gpos_data["location_y"],
-            last_gpos_data["location_x"] - first_gpos_data["location_x"],
-        )
-        angle_viso = np.atan2(
-            viso_data[-1]["location_y"] - viso_data[0]["location_y"],
-            viso_data[-1]["location_x"] - viso_data[0]["location_x"],
-        )
-        angle_rad = angle_gpos - angle_viso
+        is_inverted = y < x  # y=x の直線より下の場合は逆向きとみなす
+        if is_inverted and abs(angle_rad) < np.pi / 2:
+            angle_rad = (angle_rad + np.pi) % (2 * np.pi)
+
         angle_deg = np.degrees(angle_rad)
 
         # 初期方向を設定

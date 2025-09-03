@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, final
 from src.lib.safelist._safelist import SafeList
 from src.type import Position, QOrientationWithTimestamp
 from ._base import BaseDataRecorder
@@ -30,6 +30,7 @@ class VisoDataRecorder(BaseDataRecorder[VisoData]):
         "quat_w": float,
     }
 
+    @final
     def last_appended_orientations(self) -> SafeList[QOrientationWithTimestamp]:
         """
         最後に追加されたクォータニオンデータを取得するメソッド
@@ -53,6 +54,7 @@ class VisoDataRecorder(BaseDataRecorder[VisoData]):
 
         return SafeList(*last_data)
 
+    @final
     def last_applended_positions(self) -> SafeList[Position]:
         """
         最後に追加された位置データを取得するメソッド

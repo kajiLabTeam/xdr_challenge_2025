@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
-from src.type import Position
+from src.type import EstimateResult, Position
 
 
 class PDRLocalizer(DataRecorderProtocol):
@@ -12,7 +12,7 @@ class PDRLocalizer(DataRecorderProtocol):
     """
 
     @final
-    def estimate_pdr(self) -> Position:
+    def estimate_pdr(self) -> EstimateResult:
         """
         PDR による位置推定を行う
         """
@@ -53,8 +53,27 @@ class PDRLocalizer(DataRecorderProtocol):
             raise ValueError("初期位置が設定されていません")
 
         track: list[Position] = [first_position]
+        # 加速度データから歩幅の推定
+        detected_steps: list[float] = []
+        acc_norm_values = acce_df["low_norm"].values
+        for i in range(len(peaks)):
+            start_idx = peaks[i - 1] if i > 0 else 0
+            end_idx = peaks[i]
 
-        for peak in peaks:
+            range_acc = np.array(acc_norm_values[start_idx:end_idx])
+            valid_range_acc = range_acc[~np.isnan(range_acc)]
+            if len(valid_range_acc) == 0:
+                stride = detected_steps[-1] if detected_steps else Params.stride_scale()
+            else:
+                max_acc = np.max(np.array(valid_range_acc))
+                min_acc = np.min(np.array(valid_range_acc))
+                if max_acc - min_acc < Params.stride_threshold():
+                    stride = 0
+                else:
+                    stride = Params.stride_scale() * np.power(max_acc - min_acc, 0.25)
+            detected_steps.append(stride)
+
+        for i, peak in enumerate(peaks):
             time = acce_df["app_timestamp"].iloc[peak]
             idx = np.searchsorted(gyro_timestamps, time)
             if idx == 0:
@@ -68,18 +87,17 @@ class PDRLocalizer(DataRecorderProtocol):
                     gyro_i = gyro_df.index[idx - 1]
                 else:
                     gyro_i = gyro_df.index[idx]
-
+            step: float = (
+                detected_steps[i] if i < len(detected_steps) else detected_steps[-1]
+            )
             x = (
-                Params.step()
-                * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
+                step * np.cos(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
                 + track[-1][0]
             )
             y = (
-                Params.step()
-                * np.sin(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
+                step * np.sin(gyro_df["angle"][gyro_i] + Params.init_angle_rad())
                 + track[-1][1]
             )
-
             track.append(Position(x, y, 0))
 
-        return track[-1]
+        return (track[-1], 1.0)

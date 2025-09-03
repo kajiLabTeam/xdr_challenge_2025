@@ -1,0 +1,53 @@
+type: object
+patternProperties:
+  ".*":
+    oneOf:
+      - type: object
+        properties:
+          type:
+            const: bool_pattern
+          patterns:
+            type: array
+            items:
+              type: boolean
+            uniqueItems: true
+        required: [type, patterns]
+        additionalProperties: false
+
+      - type: object
+        properties:
+          type:
+            const: num_range
+          min:
+            type: number
+          max:
+            type: number
+          step:
+            type: number
+        required: [type, min, max, step]
+        additionalProperties: false
+
+      - type: object
+        properties:
+          type:
+            const: num_pattern
+          patterns:
+            type: array
+            items:
+              type: number
+            uniqueItems: true
+        required: [type, patterns]
+        additionalProperties: false
+
+      - type: object
+        properties:
+          type:
+            const: str_pattern
+          patterns:
+            type: array
+            items:
+              type: string
+            uniqueItems: true
+        required: [type, patterns]
+        additionalProperties: false
+additionalProperties: false
