@@ -127,6 +127,14 @@ class UWBLocalizer(DataRecorderProtocol):
         )
 
     @final
+    def leave_ai_suitcase_time_first(self) -> float:
+        """
+        AIスーツケースから離れた最初の時間を取得
+        初期進行方向推定で正解軌跡として使用できる終了時間
+        """
+        return self.uwbp_datarecorder.last_appended_data["app_timestamp"]
+
+    @final
     def _uwb_to_global_pos_by_uwbp(
         self, gpos: GposData, uwbp: UwbPData
     ) -> npt.NDArray[np.float64] | None:

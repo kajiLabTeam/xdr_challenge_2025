@@ -17,7 +17,6 @@ from src.type import (
     GridSearchConfig,
     GridSearchParams,
     GridSearchPatterns,
-    PipelineResult,
     ProcessPipelineResult,
 )
 from src.api.evaalapi import app
