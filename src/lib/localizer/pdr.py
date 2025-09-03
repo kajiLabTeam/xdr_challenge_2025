@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorderProtocol
-from src.type import EstimateResult, Position, PositionWithTimestamp
+from src.type import EstimateResult, Position, TimedPosition
 
 
 class PDRLocalizer(DataRecorderProtocol):
@@ -43,7 +43,7 @@ class PDRLocalizer(DataRecorderProtocol):
         init_pos: Position,
         init_direction: float,
         start_time: float,
-    ) -> list[PositionWithTimestamp]:
+    ) -> list[TimedPosition]:
         """
         指定した時間範囲内での PDR による位置推定を行う
         """
@@ -80,8 +80,8 @@ class PDRLocalizer(DataRecorderProtocol):
         )
 
         gyro_timestamps = np.asarray(gyro_df["app_timestamp"].values)
-        trajectory: list[PositionWithTimestamp] = [
-            PositionWithTimestamp(timestamp=0, x=init_pos.x, y=init_pos.y, z=init_pos.z)
+        trajectory: list[TimedPosition] = [
+            TimedPosition(timestamp=0, x=init_pos.x, y=init_pos.y, z=init_pos.z)
         ]
 
         # 加速度データから歩幅の推定
@@ -129,7 +129,7 @@ class PDRLocalizer(DataRecorderProtocol):
                 step * np.sin(gyro_df["angle"][gyro_i] + init_direction)
                 + trajectory[-1].y
             )
-            trajectory.append(PositionWithTimestamp(timestamp=0, x=x, y=y, z=0))
+            trajectory.append(TimedPosition(timestamp=0, x=x, y=y, z=0))
 
         return trajectory
 

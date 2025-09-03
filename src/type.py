@@ -33,7 +33,7 @@ class Position(NamedTuple):
         return f"{self.x},{self.y},{self.z}"
 
 
-class PositionWithTimestamp(NamedTuple):
+class TimedPosition(NamedTuple):
     """
     位置を表すデータ構造にタイムスタンプを追加したもの
     """
