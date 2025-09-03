@@ -8,6 +8,9 @@ class PositionDataRecorderProtocol(Protocol):
     positions: SafeList[Position]
 
     def __init__(self, trial_id: str, logger: Logger): ...
+    @property
+    def first_position(self) -> Position: ...
+    @property
     def last_position(self) -> Position: ...
     def __getitem__(self, index: int) -> Position | None: ...
 
@@ -17,6 +20,20 @@ class PositionDataRecorder:
         self.positions: SafeList[Position] = SafeList()
 
     @final
+    @property
+    def first_position(self) -> Position:
+        """
+        最初の位置を取得するメソッド
+        """
+        first_pos = self.positions[0]
+
+        if first_pos is None:
+            raise IndexError("初期位置がありません")
+
+        return first_pos
+
+    @final
+    @property
     def last_position(self) -> Position:
         """
         最後の位置を取得するメソッド
