@@ -158,11 +158,14 @@ class UWBLocalizer(DataRecorderProtocol):
         if tag_id is not None:
             if tag_id in self.tag_estimates:
                 est = self.tag_estimates[tag_id]
-                return (Position(
-                    x=float(est.position[0]),
-                    y=float(est.position[1]),
-                    z=float(est.position[2]),
-                ), est.total_confidence)
+                return (
+                    Position(
+                        x=float(est.position[0]),
+                        y=float(est.position[1]),
+                        z=float(est.position[2]),
+                    ),
+                    est.total_confidence,
+                )
             return (Position(0, 0, 0), 0.0)
 
         # tag_idが指定されていない場合は優先度と信頼性に基づいて単一タグを選択
@@ -205,17 +208,23 @@ class UWBLocalizer(DataRecorderProtocol):
 
             # 定期的に信頼性情報をログ出力（10回に1回程度）
             import random
-            if random.random() < 0.1:  # 10%の確率でログ出力
-                print(f"[UWB] アクティブタグ: {selected_tag_id}, "
-                      f"信頼性: {est.total_confidence:.3f} "
-                      f"(distance: {est.distance:.3f}m, "
-                      f"distance_conf: {est.distance_confidence:.3f})")
 
-            return (Position(
-                x=float(est.position[0]),
-                y=float(est.position[1]),
-                z=float(est.position[2]),
-            ), est.total_confidence)
+            if random.random() < 0.1:  # 10%の確率でログ出力
+                print(
+                    f"[UWB] アクティブタグ: {selected_tag_id}, "
+                    f"信頼性: {est.total_confidence:.3f} "
+                    f"(distance: {est.distance:.3f}m, "
+                    f"distance_conf: {est.distance_confidence:.3f})"
+                )
+
+            return (
+                Position(
+                    x=float(est.position[0]),
+                    y=float(est.position[1]),
+                    z=float(est.position[2]),
+                ),
+                est.total_confidence,
+            )
 
         return (Position(0, 0, 0), 0.0)
 

@@ -102,9 +102,9 @@ class Localizer(
         total_confidenceが閾値を下回る場合はプロットしない
         """
         (uwb_pos, uwb_accuracy) = self.estimate_uwb()
-        
+
         # total_confidenceの閾値（0.3）を下回る場合は前の位置を維持
-    
+
         if uwb_accuracy >= 0.3:
             self.positions.append(uwb_pos)
         else:
