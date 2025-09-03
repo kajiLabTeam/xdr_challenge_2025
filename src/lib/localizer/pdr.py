@@ -43,7 +43,7 @@ class PDRLocalizer(DataRecorderProtocol):
         init_pos: Position,
         init_direction: float,
         start_time: float,
-    ) -> list[Position]:
+    ) -> list[PositionWithTimestamp]:
         """
         指定した時間範囲内での PDR による位置推定を行う
         """
@@ -80,8 +80,8 @@ class PDRLocalizer(DataRecorderProtocol):
         )
 
         gyro_timestamps = np.asarray(gyro_df["app_timestamp"].values)
-        trajectory: list[Position] = [
-            Position(x=init_pos.x, y=init_pos.y, z=init_pos.z)
+        trajectory: list[PositionWithTimestamp] = [
+            PositionWithTimestamp(timestamp=0, x=init_pos.x, y=init_pos.y, z=init_pos.z)
         ]
 
         # 加速度データから歩幅の推定
@@ -123,13 +123,13 @@ class PDRLocalizer(DataRecorderProtocol):
             )
             x = (
                 step * np.cos(gyro_df["angle"][gyro_i] + init_direction)
-                + trajectory[-1][0]
+                + trajectory[-1].x
             )
             y = (
                 step * np.sin(gyro_df["angle"][gyro_i] + init_direction)
-                + trajectory[-1][1]
+                + trajectory[-1].y
             )
-            trajectory.append(Position(x=x, y=y, z=0))
+            trajectory.append(PositionWithTimestamp(timestamp=0, x=x, y=y, z=0))
 
         return trajectory
 
