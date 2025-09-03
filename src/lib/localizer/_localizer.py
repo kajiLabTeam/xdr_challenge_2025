@@ -50,16 +50,14 @@ class Localizer(
     @final
     def _estimate_for_competition(self) -> None:
         """
-        競技用の位置推定を行う。
-        UWBのtotal_confidenceによる制御を追加
+        競技用の位置推定を行う
         """
         (pdr_pos, pdr_accuracy) = self.estimate_pdr()
         (uwb_pos, uwb_accuracy) = self.estimate_uwb()
         (vio_pos, vio_accuracy) = self.estimate_vio()
 
-        # UWB の信頼度（total_confidence）が閾値以上の場合は UWB を使用
-        uwb_confidence_threshold = 0.5  # UWBの閾値
-        if uwb_accuracy >= uwb_confidence_threshold and uwb_pos:
+        # UWB の信頼度が 0.5 以上の場合は UWB を使用
+        if uwb_accuracy >= 0.5 and uwb_pos:
             self.positions.append(uwb_pos)
             return
 
@@ -103,8 +101,7 @@ class Localizer(
         """
         (uwb_pos, uwb_accuracy) = self.estimate_uwb()
 
-        # total_confidenceの閾値（0.3）を下回る場合は前の位置を維持
-
+        # total_confidenceの閾値を下回る場合は前の位置を維持
         if uwb_accuracy >= 0.3:
             self.positions.append(uwb_pos)
         else:

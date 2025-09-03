@@ -17,63 +17,41 @@ class TagEstimate:
     def __init__(
         self,
         tag_id: str,
-        position: np.ndarray,
-        confidence: float,
+        position: Position,
+        accuracy: float,
         distance: float,
-        method: str,
         is_nlos: bool = True,
-        distance_confidence: float = 1.0,  # 距離ベースの信頼性
     ):
         self.tag_id = tag_id
         self.position = position
-        self.confidence = confidence
+        self.accuracy = accuracy
         self.distance = distance
-        self.method = method  # 'UWBT' or 'UWBP'
         self.is_nlos = is_nlos  # Non-Line of Sight フラグ
-        self.distance_confidence = distance_confidence  # 距離による信頼性
-        self.total_confidence = confidence * distance_confidence  # 統合信頼性
 
 
 class UWBLocalizer(DataRecorderProtocol):
     """
     UWB による位置推定のためのクラス
-
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
 
     def __init__(self) -> None:
-        self.tag_trajectories: dict[str, list[Position]] = {}
-        self.tag_estimates: dict[str, TagEstimate] = {}
-        self.tag_priority = ["3637RLJ", "3636DWF", "3583WAA"]
-        self.current_active_tag: str | None = None
-        self.tag_switch_history: list[tuple[float, str]] = []  # (timestamp, tag_id)
+        self.tag_priority = ("3637RLJ", "3636DWF", "3583WAA")
 
     @final
-    def estimate_uwb(self, tag_id: str | None = None) -> EstimateResult:
-        """特定のタグIDまたは優先度に基づく単一タグの推定を返す"""
-        # 属性が存在しない場合は初期化
-        if not hasattr(self, "tag_trajectories"):
-            self.tag_trajectories = {}
-        if not hasattr(self, "tag_estimates"):
-            self.tag_estimates = {}
-        if not hasattr(self, "tag_priority"):
-            self.tag_priority = ["3637RLJ", "3636DWF", "3583WAA"]
-        if not hasattr(self, "current_active_tag"):
-            self.current_active_tag = None
-        if not hasattr(self, "tag_switch_history"):
-            self.tag_switch_history = []
+    def estimate_uwb(self) -> EstimateResult:
+        """
+        UWB による位置推定を行うメソッド
+        """
 
         uwbp_data = self.uwbp_datarecorder.last_appended_data
         uwbt_data = self.uwbt_datarecorder.data[-100:]
         gpos_data = self.gpos_datarecorder.last_appended_data
 
-        tag_positions: dict[str, list[tuple[np.ndarray, float]]] = {}
+        uwb_data_tag_dict: dict[str, list[tuple[np.ndarray, float, float]]] = {}
 
         for uwbp in uwbp_data:
-            current_tag_id = uwbp.get("tag_id", "unknown")
-
-            if tag_id is not None and current_tag_id != tag_id:
-                continue
+            current_tag_id = uwbp["tag_id"]
 
             nearest_uwbt = min(
                 uwbt_data,
@@ -94,21 +72,23 @@ class UWBLocalizer(DataRecorderProtocol):
             if pos is None:
                 continue
 
-            if current_tag_id not in tag_positions:
-                tag_positions[current_tag_id] = []
+            if current_tag_id not in uwb_data_tag_dict:
+                uwb_data_tag_dict[current_tag_id] = []
 
-            tag_positions[current_tag_id].append(
+            uwb_data_tag_dict[current_tag_id].append(
                 (
                     pos,
                     accuracy,
+                    uwbp["distance"],
                 )
             )
 
-        if len(tag_positions) == 0:
+        if len(uwb_data_tag_dict) == 0:
             return (Position(0, 0, 0), 0.0)
 
         # 各タグごとの推定位置を計算して保存
-        for tid, pos_acc_list in tag_positions.items():
+        tag_estimates: list[TagEstimate] = []
+        for tag_id, pos_acc_list in uwb_data_tag_dict.items():
             if len(pos_acc_list) == 0:
                 continue
 
@@ -119,114 +99,32 @@ class UWBLocalizer(DataRecorderProtocol):
                 positions * accuracies.reshape(-1, 1), axis=0
             ) / np.sum(accuracies)
 
-            estimated_pos = Position(
-                x=float(weighted_position[0]),
-                y=float(weighted_position[1]),
-                z=float(weighted_position[2]),
-            )
-
-            # タグごとの軌跡に追加
-            if tid not in self.tag_trajectories:
-                self.tag_trajectories[tid] = []
-            self.tag_trajectories[tid].append(estimated_pos)
-
             # 最新の推定を保存
-            mean_distance = float(
-                np.mean(
-                    [
-                        uwbp["distance"]
-                        for uwbp in uwbp_data
-                        if uwbp.get("tag_id") == tid
-                    ]
-                )
-            )
-            distance_conf = self._calculate_distance_confidence(
-                mean_distance, method="sigmoid"
-            )
+            mean_distance = float(np.mean([p[2] for p in pos_acc_list]))
 
-            self.tag_estimates[tid] = TagEstimate(
-                tag_id=tid,
-                position=weighted_position,
-                confidence=float(np.mean(accuracies)),
-                distance=mean_distance,
-                method="UWBP",
-                is_nlos=False,
-                distance_confidence=distance_conf,
-            )
-
-        # 特定のタグIDが指定されている場合はその推定のみ返す
-        if tag_id is not None:
-            if tag_id in self.tag_estimates:
-                est = self.tag_estimates[tag_id]
-                return (
-                    Position(
-                        x=float(est.position[0]),
-                        y=float(est.position[1]),
-                        z=float(est.position[2]),
+            tag_estimates.append(
+                TagEstimate(
+                    tag_id=tag_id,
+                    position=Position(
+                        float(weighted_position[0]),
+                        float(weighted_position[1]),
+                        float(weighted_position[2]),
                     ),
-                    est.total_confidence,
+                    accuracy=accuracies.mean(),
+                    distance=mean_distance,
+                    is_nlos=False,
                 )
+            )
+
+        # 最も信頼度の高いタグを選択
+        selected_tag = max(tag_estimates, key=lambda t: t.accuracy, default=None)
+        if selected_tag is None:
             return (Position(0, 0, 0), 0.0)
 
-        # tag_idが指定されていない場合は優先度と信頼性に基づいて単一タグを選択
-        # 優先度の高いタグから順にデータがあるかチェック
-        selected_tag_id = None
-        min_confidence_threshold = 0.3  # 最低信頼性閾値
-
-        for priority_tag in self.tag_priority:
-            if priority_tag in tag_positions and len(tag_positions[priority_tag]) > 0:
-                # 信頼性をチェック
-                if priority_tag in self.tag_estimates:
-                    est = self.tag_estimates[priority_tag]
-                    if est.total_confidence >= min_confidence_threshold:
-                        selected_tag_id = priority_tag
-                        break
-                else:
-                    # まだ推定がない場合は使用
-                    selected_tag_id = priority_tag
-                    break
-
-        # 優先度リストにないタグがある場合は、最初に見つかったものを使用
-        if selected_tag_id is None and len(tag_positions) > 0:
-            selected_tag_id = next(iter(tag_positions.keys()))
-
-        # 選択されたタグの推定位置を返す
-        if selected_tag_id and selected_tag_id in self.tag_estimates:
-            est = self.tag_estimates[selected_tag_id]
-
-            # タグが切り替わった場合は記録
-            if self.current_active_tag != selected_tag_id:
-                import time
-
-                self.tag_switch_history.append((time.time(), selected_tag_id))
-                if self.current_active_tag is not None:
-                    print(
-                        f"[UWB] タグ切り替え: {self.current_active_tag} → {selected_tag_id} "
-                        f"(信頼性: {est.total_confidence:.3f})"
-                    )
-                self.current_active_tag = selected_tag_id
-
-            # 定期的に信頼性情報をログ出力（10回に1回程度）
-            import random
-
-            if random.random() < 0.1:  # 10%の確率でログ出力
-                print(
-                    f"[UWB] アクティブタグ: {selected_tag_id}, "
-                    f"信頼性: {est.total_confidence:.3f} "
-                    f"(distance: {est.distance:.3f}m, "
-                    f"distance_conf: {est.distance_confidence:.3f})"
-                )
-
-            return (
-                Position(
-                    x=float(est.position[0]),
-                    y=float(est.position[1]),
-                    z=float(est.position[2]),
-                ),
-                est.total_confidence,
-            )
-
-        return (Position(0, 0, 0), 0.0)
+        return (
+            selected_tag.position,
+            selected_tag.accuracy,
+        )
 
     @final
     def _uwb_to_global_pos_by_uwbp(
@@ -315,7 +213,7 @@ class UWBLocalizer(DataRecorderProtocol):
     @final
     def _uwb_calc_accuracy(self, uwbp: UwbPData, uwbt: UwbTData) -> float:
         """
-        確信度を計算する
+        信頼度を計算する
         """
         time_diff = abs(uwbp["app_timestamp"] - uwbt["app_timestamp"])
         time_diff_accuracy = Utils.sigmoid(time_diff, 5, 0.5)
@@ -325,55 +223,14 @@ class UWBLocalizer(DataRecorderProtocol):
         return time_diff_accuracy * distance_accuracy * los_accuracy
 
     @final
-    def _calculate_distance_confidence(
-        self, distance: float, method: str = "sigmoid"
-    ) -> float:
+    def _uwb_cal_distance_accuracy(self, distance: float) -> float:
         """
-        距離に基づく信頼性を計算
+        距離に基づく信頼度を計算
 
         Args:
             distance: UWB測定距離(m)
-            method: 計算方法 ("sigmoid", "cosine", "exponential", "quadratic")
 
         Returns:
-            0.0〜1.0の信頼性スコア
+            0.0〜1.0の信頼度
         """
-        if method == "sigmoid":
-            if distance <= 1.0:
-                return 1.0
-            elif distance >= 3.0:
-                return 0.01  # 完全に0にせず微小値を残す
-            else:
-                k = 3.0  # 傾きの急峻さ
-                center = 2.0  # 中心点（1と3の中間）
-                return 1.0 / (1.0 + np.exp(k * (distance - center)))
-
-        elif method == "cosine":
-            if distance <= 1.0:
-                return 1.0
-            elif distance >= 3.0:
-                return 0.01
-            else:
-                normalized = (distance - 1.0) / 2.0  # 0~1に正規化
-                return 0.5 * (1.0 + np.cos(np.pi * normalized))
-
-        elif method == "exponential":
-            if distance <= 1.0:
-                return 1.0
-            elif distance >= 3.0:
-                return 0.01
-            else:
-                k = 2.0  # 減衰率
-                return np.exp(-k * (distance - 1.0))
-
-        elif method == "quadratic":
-            if distance <= 1.0:
-                return 1.0
-            elif distance >= 3.0:
-                return 0.01
-            else:
-                normalized = (distance - 1.0) / 2.0
-                return max(0.01, 1.0 - normalized**2)
-
-        # デフォルトはシグモイド
-        return self._calculate_distance_confidence(distance, "sigmoid")
+        return max(0.0, min(1.0, -0.2 * distance + 1))
