@@ -22,6 +22,8 @@ class Localizer(
     位置推定のためのクラス
     """
 
+    is_initialized: bool = False
+
     @final
     @require_attr_appended("positions", 1)
     @timer
@@ -71,8 +73,7 @@ class Localizer(
             self.positions.append(pdr_pos)
             return
 
-        last_pos = self.last_position()
-        self.positions.append(vio_pos if vio_pos else last_pos)
+        self.positions.append(vio_pos if vio_pos else self.last_position)
 
     @final
     @demo_only
@@ -80,6 +81,9 @@ class Localizer(
         """
         PDR のみを使用して位置を推定する(demo用)
         """
+        if not self.is_initialized:
+            self.switch_to_pdr(0, self.first_position, Params.init_angle_rad())
+            self.is_initialized = True
         (pdr_pos, pdr_accuracy) = self.estimate_pdr()
         self.positions.append(pdr_pos)
 
