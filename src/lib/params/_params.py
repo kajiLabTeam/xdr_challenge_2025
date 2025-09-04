@@ -111,6 +111,14 @@ class Params:
         return 0.25
 
     @staticmethod
+    @float_env_or_call("STOP_WALK_SEC")
+    def stop_walk_sec() -> float:
+        """
+        ステップに一定時間間が空いた場合に歩行が止まったとみなす時間 (秒)
+        """
+        return 6.0
+
+    @staticmethod
     @env_exists
     def set_param(env_name: str, value: str | float | bool) -> None:
         """

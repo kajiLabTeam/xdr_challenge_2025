@@ -4,9 +4,10 @@ from typing import final, Optional
 from PIL import Image
 from collections import deque
 import numpy as np
-
+import pandas as pd
+from src.lib.params._params import Params
 from src.lib.visualizer._visualizer import VisualizerProtocol
-from src.type import Pixel, Position, PositionWithTimestamp
+from src.type import Pixel, Position, TimedPosition, TimedPose
 
 
 class MapMatching(VisualizerProtocol):
@@ -14,7 +15,7 @@ class MapMatching(VisualizerProtocol):
     MAP_RESOLUTION: float = 0.01
     MAP_ORIGIN_X_IN_PIXELS: int = 565
     MAP_ORIGIN_Y_IN_PIXELS: int = 1480
-    WALKABLE_THRESHOLD: int = 200
+    WALKABLE_THRESHOLD: int = 20
 
     EXHIBITS = [  # 展示物の位置と向きの定義 でもorientationが機能してないかも（サンプルデータに向き情報がないため）
         {"id": "exhibit_A", "pos": Position(19.5, -10.0, 0), "orientation": np.pi},
@@ -46,6 +47,33 @@ class MapMatching(VisualizerProtocol):
         except FileNotFoundError:
             self.logger.error(f"マップファイルが見つかりません: {self.map_file}")
 
+    def map_matching(self, poses: list[TimedPose]) -> list[TimedPose]:
+        """
+        マップマッチングを実行する
+
+        Args:
+            poses (list[TimedPose]): 入力の位置リスト。
+        Returns:
+            list[TimedPose]: マップマッチング後の位置リスト。
+        """
+        pose_df = pd.DataFrame(
+            poses,
+            columns=["x", "y", "z", "yaw", "timestamp"],
+        )
+        # timestampの差を出す
+        pose_df["dt"] = pose_df["timestamp"].diff().fillna(0)
+        # Params.stop_walk_sec() 秒以上の差がある場合、停止とみなす
+        pose_df["is_stopped"] = pose_df["dt"] > Params.stop_walk_sec()
+
+        for i in range(len(pose_df)):
+            current_series = pose_df.iloc[i]
+
+            if current_series["is_stopped"]:
+                # 展示物
+                pass
+
+        return []  # TODO
+
     def _find_nearest_exhibit(self, position: Position) -> Optional[dict]:
         """
         指定された位置から最も近い展示物を見つける。
@@ -63,142 +91,6 @@ class MapMatching(VisualizerProtocol):
             if hasattr(ex["pos"], "x") and hasattr(ex["pos"], "y")
         ]
         return self.EXHIBITS[np.argmin(distances)]
-
-    def map_matching(self, positions: list[PositionWithTimestamp]) -> list[Position]:
-        """
-        タイムスタンプ付きの位置情報のリストを受け取り、マップマッチングを適用して補正された位置情報のリストを返す。
-        停止検出による展示物へのスナップ、壁衝突時の経路補正などを行う。
-        Args:
-            positions (list[PositionWithTimestamp]): PDRによって推定されたタイムスタンプ付きの位置のリスト。
-        Returns:
-            list[Position]: マップマッチングによって補正された位置のリスト。
-        """
-
-        if not positions:
-            return []
-
-        corrected_positions = [Position(positions[0].x, positions[0].y, positions[0].z)]
-
-        for i in range(1, len(positions)):
-            # --- PDRの予測位置に、これまでの累積オフセットを適用 ---
-            # PDRの生の位置
-            current_pdr_pos_raw = Position(
-                positions[i].x, positions[i].y, positions[i].z
-            )
-            # オフセットを適用した現在のPDR位置
-            current_pdr_pos = Position(
-                current_pdr_pos_raw.x + self.trajectory_offset[0],
-                current_pdr_pos_raw.y + self.trajectory_offset[1],
-                current_pdr_pos_raw.z,
-            )
-
-            time_diff = (
-                positions[i].timestamp - positions[i - 1].timestamp
-            )  # タイムスタンプの差
-
-            # --- 6秒以上の停止を検知した場合の処理 ---
-            if time_diff >= 6.0:
-                print(
-                    f"タイムスタンプの差が6秒以上あります: index={i}, diff={time_diff:.2f}。展示物での停止と判断します。"
-                )
-                last_pos_before_stop = corrected_positions[-1]
-
-                nearest_exhibit = self._find_nearest_exhibit(last_pos_before_stop)
-
-                if nearest_exhibit:
-                    corrected_pos = nearest_exhibit["pos"]
-
-                    # ★★★ オフセットを計算し、累積更新 ★★★
-                    offset_x = corrected_pos.x - current_pdr_pos.x
-                    offset_y = corrected_pos.y - current_pdr_pos.y
-                    self.trajectory_offset = (
-                        self.trajectory_offset[0] + offset_x,
-                        self.trajectory_offset[1] + offset_y,
-                    )
-                    # ★★★★★★★★★★★★★★★★★★★★★
-
-                    # 補正後の位置は、現在のPDR位置にオフセットを加算したもの、つまり展示物の位置そのもの
-                    final_corrected_pos = Position(
-                        current_pdr_pos.x + offset_x,
-                        current_pdr_pos.y + offset_y,
-                        current_pdr_pos.z,
-                    )
-
-                    self.last_known_angle = nearest_exhibit[
-                        "orientation"
-                    ]  # 最後に知られている向きを更新
-                    corrected_positions.append(
-                        final_corrected_pos
-                    )  # 補正後の位置を追加
-
-                    print(
-                        f"  -> {nearest_exhibit['id']} の位置にスナップ。軌跡全体のオフセットを更新: (dx={self.trajectory_offset[0]:.2f}, dy={self.trajectory_offset[1]:.2f})"
-                    )
-                    continue
-
-            # --- 通常のマップマッチング処理 (オフセット適用済みの'current_pdr_pos'を使用) ---
-            last_corrected_pos = corrected_positions[-1]  # 最後に補正された位置
-            current_pdr_px = self._world_to_pixel(current_pdr_pos)
-            last_corrected_px = self._world_to_pixel(last_corrected_pos)
-
-            if self._is_path_clear(last_corrected_px, current_pdr_px):
-                corrected_positions.append(current_pdr_pos)
-            else:  # 壁に衝突している場合の処理
-                collision_px = self._find_collision_point(
-                    last_corrected_px, current_pdr_px
-                )  # 衝突点を探索
-                snapped_px = self._find_nearest_passable_point(
-                    collision_px
-                )  # 衝突点から最も近い通行可能なピクセルを探索
-                print(
-                    f"壁に衝突しました。 衝突点: ({collision_px.x}, {collision_px.y})"
-                )
-                print(
-                    f"衝突点から最も近い通行可能なピクセル: ({snapped_px.x}, {snapped_px.y})"
-                )
-
-                corridor_direction = self._get_corridor_direction(
-                    snapped_px
-                )  # 衝突点周辺の通行可能な方向を調査
-                movement_vector = (
-                    current_pdr_pos.x - last_corrected_pos.x,
-                    current_pdr_pos.y - last_corrected_pos.y,
-                )  # 移動ベクトル
-                projected_vector = (0.0, 0.0)  # 衝突点からの投影ベクトル
-                if corridor_direction == "NS":
-                    projected_vector = (0, movement_vector[1])  # 縦方向に投影
-                elif corridor_direction == "EW":
-                    projected_vector = (movement_vector[0], 0)  # 横方向に投影
-
-                new_pos = Position(
-                    last_corrected_pos.x + projected_vector[0],
-                    last_corrected_pos.y + projected_vector[1],
-                    current_pdr_pos.z,
-                )  # 投影ベクトルを適用した新しい位置
-                new_pos_px = self._world_to_pixel(new_pos)
-
-                if (
-                    projected_vector != (0.0, 0.0)
-                    and self._is_walkable(new_pos_px)
-                    and self._is_path_clear(last_corrected_px, new_pos_px)
-                ):  #
-                    corrected_positions.append(new_pos)
-                else:  # 投影ベクトルがゼロベクトル、または投影先が通行不可能、または経路が通行不可能な場合
-                    if self._is_path_clear(
-                        last_corrected_px, snapped_px
-                    ):  # スナップ先までの経路が通行可能ならスナップ先に移動
-                        snapped_world_pos = self._pixel_to_world(snapped_px)
-                        corrected_positions.append(
-                            Position(
-                                snapped_world_pos.x,
-                                snapped_world_pos.y,
-                                current_pdr_pos.z,
-                            )
-                        )
-                    else:  # それ以外は最後に補正された位置を維持
-                        corrected_positions.append(last_corrected_pos)
-
-        return corrected_positions
 
     def _is_path_clear(self, p1: Pixel, p2: Pixel) -> bool:
         """
@@ -331,7 +223,7 @@ class MapMatching(VisualizerProtocol):
         return start_pixel
 
     @final
-    def _world_to_pixel(self, position: Position | PositionWithTimestamp) -> Pixel:
+    def _world_to_pixel(self, position: Position | TimedPosition) -> Pixel:
         """
         実世界座標(メートル)をピクセル座標に変換する
         Args:
