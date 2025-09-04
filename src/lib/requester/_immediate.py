@@ -4,7 +4,7 @@ from pathlib import Path
 from logging import Logger
 from urllib.parse import urljoin
 from src.lib.utils._utils import Utils
-from src.type import Estimate, Position, SensorData, TrialState
+from src.type import Estimate, SensorData, TimedPose, TrialState
 import pandas as pd
 from ._base import BaseRequester
 
@@ -85,7 +85,7 @@ class ImmediateRequester(BaseRequester):
 
     def send_nextdata_req(
         self,
-        position: Position | None = None,
+        pose: TimedPose | None = None,
         offline: bool = False,
         horizon: float = 0.5,
     ) -> SensorData | TrialState | None:
@@ -93,7 +93,7 @@ class ImmediateRequester(BaseRequester):
         センサーデータを取得し、同時にクライアントが算出した位置情報をサーバーに提出するリクエストを送信するメソッド
 
         Args:
-            position (Position | None): クライアントが算出した位置情報
+            pose (TimedPose | None): クライアントが算出した位置・方向情報
             offline (bool): オフラインモードかどうか
             horizon (float): センサーデータの取得時間範囲
 
@@ -123,7 +123,7 @@ class ImmediateRequester(BaseRequester):
                 pos=self.est[-1].pos,
             )
 
-        if isinstance(position, Position):
+        if isinstance(pose, TimedPose):
             self.pts = self.trial_timestamp
             self.est.append(
                 Estimate(
@@ -131,9 +131,9 @@ class ImmediateRequester(BaseRequester):
                     c=current_timestamp,
                     h=horizon,
                     s=self.s,
-                    x=position.x,
-                    y=position.y,
-                    z=position.z,
+                    x=pose.x,
+                    y=pose.y,
+                    z=pose.z,
                 )
             )
 

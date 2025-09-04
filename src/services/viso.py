@@ -1,5 +1,5 @@
 from src.lib.recorder.viso import VisoData
-from src.type import Position, PositionWithTimestamp
+from src.type import Position, TimedPosition
 
 
 class VisoService:
@@ -15,11 +15,11 @@ class VisoService:
         )
 
     @staticmethod
-    def to_position_with_timestamp(data: VisoData) -> PositionWithTimestamp:
+    def to_position_with_timestamp(data: VisoData) -> TimedPosition:
         """
-        VISO データから PositionWithTimestamp オブジェクトを生成する
+        VISO データから TimedPosition オブジェクトを生成する
         """
-        return PositionWithTimestamp(
+        return TimedPosition(
             x=data["location_x"],
             y=data["location_y"],
             z=data["location_z"],

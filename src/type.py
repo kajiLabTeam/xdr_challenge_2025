@@ -8,6 +8,7 @@ from typing import (
     Unpack,
     cast,
 )
+import numpy as np
 from parse import parse
 import pydantic
 import re
@@ -33,7 +34,7 @@ class Position(NamedTuple):
         return f"{self.x},{self.y},{self.z}"
 
 
-class PositionWithTimestamp(NamedTuple):
+class TimedPosition(NamedTuple):
     """
     位置を表すデータ構造にタイムスタンプを追加したもの
     """
@@ -65,6 +66,48 @@ class Pixel(NamedTuple):
 
     x: int
     y: int
+class TimedPose(NamedTuple):
+    """
+    位置・姿勢・タイムスタンプを表すデータ構造
+    """
+
+    x: float
+    y: float
+    z: float
+    yaw: float
+    timestamp: float
+
+    def __repr__(self) -> str:
+        """
+        `x,y,z,yaw` の形式で文字列を返す
+        """
+        return f"({self.x},{self.y},{self.z},{self.yaw})"
+
+    def __str__(self) -> str:
+        """
+        `x,y,yaw` の形式で文字列を返す
+        """
+        wrapped = self.yaw % (2 * np.pi)
+        if wrapped > np.pi:
+            wrapped -= 2 * np.pi
+
+        return f"{self.x},{self.y},{wrapped}"
+
+    def to_position(self) -> Position:
+        """
+        Position オブジェクトを返す
+        Returns:
+            Position: Position オブジェクト
+        """
+        return Position(self.x, self.y, self.z)
+
+    def to_timed_position(self) -> TimedPosition:
+        """
+        TimedPosition オブジェクトを返す
+        Returns:
+            TimedPosition: TimedPosition オブジェクト
+        """
+        return TimedPosition(self.timestamp, self.x, self.y, self.z)
 
 
 class QOrientation(NamedTuple):
@@ -383,7 +426,7 @@ class Estimate(NamedTuple):
         return Position(self.x, self.y, self.z)
 
 
-EstimateResult = tuple[Position, float]
+EstimateResult = tuple[TimedPose, float]
 
 
 class BooleanPattern(TypedDict):
@@ -421,3 +464,13 @@ class PipelineResult(NamedTuple):
     """
 
     rmse: float | None
+
+
+class ProcessPipelineResult(NamedTuple):
+    """
+    プロセスパイプラインの結果を表すデータ構造
+    """
+
+    i: int
+    result: PipelineResult
+    params: GridSearchParams

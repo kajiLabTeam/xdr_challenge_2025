@@ -1,7 +1,6 @@
 import os
 import logging
 from pathlib import Path
-import time
 import colorlog
 from src.lib import Localizer, Requester, RequesterError
 from src.lib import wait_if_not_immediate
@@ -11,7 +10,14 @@ from src.lib.params._params import Params
 from src.lib.requester import BaseRequester, ImmediateRequester
 from src.lib.utils._utils import Utils
 from src.services.env import init_env
-from src.type import GridSearchParams, PipelineResult, SensorData, TrialState
+from src.type import (
+    GridSearchParams,
+    PipelineResult,
+    ProcessPipelineResult,
+    SensorData,
+    TimedPose,
+    TrialState,
+)
 
 
 def pipeline(
@@ -23,6 +29,7 @@ def pipeline(
     show_plot_map: bool,
     no_save_plot_map: bool,
     immediate: bool,
+    plot_file_suffix: str = "",
 ) -> PipelineResult:
     """
     実行手順の定義
@@ -38,18 +45,26 @@ def pipeline(
     wait_if_not_immediate(immediate, maxwait)
 
     # 初期状態を取得
-    initial_state = requester.send_state_req()
-    if initial_state is None:
+    init_state = requester.send_state_req()
+    if init_state is None:
         logger.error("初期状態の取得に失敗しました")
         return PipelineResult(rmse=None)
 
-    logger.info(f"初期状態: {initial_state}")
-    localizer.set_init_pos(initial_state.pos)
+    logger.info(f"初期状態: {init_state}")
+    localizer.set_init_pose(
+        TimedPose(
+            x=init_state.pos.x,
+            y=init_state.pos.y,
+            z=init_state.pos.z,
+            yaw=0.0,
+            timestamp=0.0,
+        )
+    )
     wait_if_not_immediate(immediate, maxwait)
 
     while True:
         try:
-            recv_data = requester.send_nextdata_req(position=localizer[-1])
+            recv_data = requester.send_nextdata_req(pose=localizer.last_pose)
 
             # センサーデータを受信した場合
             if isinstance(recv_data, SensorData):
@@ -82,26 +97,28 @@ def pipeline(
                 logger.error(f"予期しないエラー: {e}", exc_info=True)
                 break
 
-    datetime = time.strftime("%Y%m%d_%H%M%S")
-
     # 推定結果を取得
     estimates_df = requester.send_estimates_req()
     if estimates_df is None:
         logger.error("推定結果の取得に失敗しました")
         return PipelineResult(rmse=None)
 
-    estimates_df.to_csv(output_dir / f"{trial_id}_{datetime}_est.csv", index=False)
+    estimates_df.to_csv(output_dir / f"estimates.csv", index=False)
 
     # Ground Truth を取得
     ground_truth_df = GroundTruth.groundtruth(trial_id)
 
-    # 推定結果をマップにプロット
+    # 推定結果をプロット
     localizer.plot_map(
         "map/miraikan_5.bmp",
-        output_dir / f"{trial_id}_{datetime}_map.png",
+        output_dir / f"plot_map{plot_file_suffix}.png",
         show=show_plot_map,
         save=not no_save_plot_map,
         gpos=True,
+        ground_truth_df=ground_truth_df,
+    )
+    localizer.plot_yaw(
+        output_dir / f"plot_yaw{plot_file_suffix}.png",
         ground_truth_df=ground_truth_df,
     )
 
@@ -117,12 +134,12 @@ def pipeline(
 
 
 def process_pipeline(
-    datetime: str,
+    process_i: int,
     params: GridSearchParams,
     trial_id: str,
     output_dir: Path,
     excec_message: str,
-) -> tuple[PipelineResult, GridSearchParams]:
+) -> ProcessPipelineResult:
     """
     スレッドでパイプラインを実行します
     """
@@ -130,7 +147,7 @@ def process_pipeline(
 
     # ロガーの初期化
     logger = colorlog.getLogger()
-    log_file_path = output_dir / f"log_{datetime}_{process_id}.log"
+    log_file_path = output_dir / f"log_{process_id}.log"
     Utils.init_logging(
         logger,
         f"[{process_id}] %(asctime)s [%(levelname)s] %(message)s",
@@ -158,7 +175,8 @@ def process_pipeline(
         False,  # show_plot_map
         True,  # no_save_plot_map
         True,  # immediate
+        plot_file_suffix=f"_{process_i}",
     )
 
     logger.info(f"パイプライン終了")
-    return (res, params)
+    return ProcessPipelineResult(process_i, res, params)

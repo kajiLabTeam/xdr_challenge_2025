@@ -6,7 +6,7 @@ from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
-from src.type import EstimateResult, Position
+from src.type import EstimateResult, Position, TimedPose
 
 
 class VIOLocalizer(DataRecorderProtocol):
@@ -28,13 +28,13 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         try:
             viso_last_data = self.viso_datarecorder.last_appended_data[-1]
-            pos = self._vio_to_global_position(viso_last_data)
-            if pos is None:
-                return (Position(0, 0, 0), 0.0)
-            return (pos, 1.0)
+            pose = self._vio_to_global_position(viso_last_data)
+            if pose is None:
+                return (TimedPose(0, 0, 0, 0, self.timestamp), 0.0)
+            return (pose, 1.0)
         except IndexError:
             self.logger.debug("VISO データがありません")
-            return (Position(0, 0, 0), 0.0)
+            return (TimedPose(0, 0, 0, 0, self.timestamp), 0.0)
 
     @final
     def estimate_vio_orientations(self) -> SafeList[QOrientationWithTimestamp]:
@@ -49,7 +49,7 @@ class VIOLocalizer(DataRecorderProtocol):
         return orientations
 
     @final
-    def _vio_to_global_position(self, data: VisoData) -> Position | None:
+    def _vio_to_global_position(self, data: VisoData) -> TimedPose | None:
         """
         グローバル位置を取得するメソッド
         初期位置・初期方向が取得できない場合は、None を返す
@@ -74,10 +74,12 @@ class VIOLocalizer(DataRecorderProtocol):
         rotated_x = pos.x * np.cos(init_dir) - pos.y * np.sin(init_dir)
         rotated_y = pos.x * np.sin(init_dir) + pos.y * np.cos(init_dir)
 
-        return Position(
+        return TimedPose(
             x=rotated_x + first_gpos_data["location_x"],
             y=rotated_y + first_gpos_data["location_y"],
             z=pos.z + first_gpos_data["location_z"],
+            yaw=0,  # TODO: VISO の方位を取得する
+            timestamp=self.timestamp,
         )
 
     @final
@@ -102,17 +104,21 @@ class VIOLocalizer(DataRecorderProtocol):
         if len(df) > 4000:
             return self._viso_init_direction
 
-        G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
         V = df[["location_x_viso", "location_y_viso"]].to_numpy()
+        G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
 
         R, _ = orthogonal_procrustes(V, G)
-        vec_X = G[-1] - V[0]
-        vec_Y = G[-1] - G[0]
-        cos_angle = np.dot(vec_X, vec_Y) / (
-            np.linalg.norm(vec_X) * np.linalg.norm(vec_Y)
-        )
+        # -180° ~ 180° に正規化
+        angle_rad = np.arctan2(R[1, 0], R[0, 0]) % (2 * np.pi) - np.pi
 
-        angle_rad = np.arccos(np.clip(cos_angle, -1.0, 1.0))
+        vio_last_data = self.viso_datarecorder.data[-1]
+        x = vio_last_data["location_x"]
+        y = vio_last_data["location_y"]
+
+        is_inverted = y < x  # y=x の直線より下の場合は逆向きとみなす
+        if is_inverted and abs(angle_rad) < np.pi / 2:
+            angle_rad = (angle_rad + np.pi) % (2 * np.pi)
+
         angle_deg = np.degrees(angle_rad)
 
         # 初期方向を設定

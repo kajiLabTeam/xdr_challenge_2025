@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import final
+from typing import Literal, final
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.decorators.time import timer
@@ -7,6 +7,7 @@ from src.lib.mapmatching import MapMatching
 from src.lib.params._params import Params
 from src.lib.recorder import DataRecorder
 from src.lib.visualizer import Visualizer
+from src.type import TimedPose
 from .pdr import PDRLocalizer
 from .vio import VIOLocalizer
 from .uwb import UWBLocalizer
@@ -24,11 +25,13 @@ class Localizer(
     位置推定のためのクラス
     """
 
+    current_method: Literal["INIT", "PDR", "VIO", "UWB"] = "INIT"
+
     def __init__(self, trial_id: str, logger: Logger) -> None:
         super().__init__(trial_id, logger)
 
     @final
-    @require_attr_appended("positions", 1)
+    @require_attr_appended("poses", 1)
     @timer
     def estimate(self) -> None:
         """
@@ -55,30 +58,35 @@ class Localizer(
     @final
     def _estimate_for_competition(self) -> None:
         """
-        競技用の位置推定を行う。
-        TODO: accuracyの調整
+        競技用の位置推定を行う
         """
-        (pdr_pos, pdr_accuracy) = self.estimate_pdr()
-        (uwb_pos, uwb_accuracy) = self.estimate_uwb()
-        (vio_pos, vio_accuracy) = self.estimate_vio()
+        (uwb_pose, uwb_accuracy) = self.estimate_uwb()
 
-        # UWB の信頼度が 0.8 以上の場合は UWB を使用 TODO: 調整
-        if uwb_accuracy > 0.8:
-            self.positions.append(uwb_pos)
+        # UWB の信頼度が 0.5 以上の場合は UWB を使用
+        if uwb_accuracy >= 0.5 and uwb_pose:
+            self.current_method = "UWB"
+            self.poses.append(uwb_pose)
             return
 
         # VIO の信頼度が 0.8 以上の場合は VIO を使用 TODO: 調整
+        (vio_pose, vio_accuracy) = self.estimate_vio()
         if vio_accuracy > 0.8:
-            self.positions.append(vio_pos)
+            self.current_method = "VIO"
+            self.poses.append(vio_pose)
             return
 
         # PDR の信頼度が 0.8 以上の場合は PDR を使用 TODO: 調整
+        if self.current_method != "PDR":
+            last_time = self.acc_datarecorder.last_appended_data[-1]["app_timestamp"]
+            self.switch_to_pdr(last_time, self.last_pose, 0)  # TODO: 方向の指定
+            self.current_method = "PDR"
+        (pdr_pose, pdr_accuracy) = self.estimate_pdr()
+
         if pdr_accuracy > 0.8:
-            self.positions.append(pdr_pos)
+            self.poses.append(pdr_pose)
             return
 
-        last_pos = self.last_position()
-        self.positions.append(vio_pos if vio_pos else last_pos)
+        self.poses.append(vio_pose if vio_pose else self.last_pose)
 
     @final
     @demo_only
@@ -86,8 +94,12 @@ class Localizer(
         """
         PDR のみを使用して位置を推定する(demo用)
         """
-        (pdr_pos, pdr_accuracy) = self.estimate_pdr()
-        self.positions.append(pdr_pos)
+        if self.current_method != "PDR":
+            self.current_method = "PDR"
+            self.switch_to_pdr(0, self.first_pose, Params.init_angle_rad())
+
+        (pdr_pose, pdr_accuracy) = self.estimate_pdr()
+        self.poses.append(pdr_pose)
 
     @final
     @demo_only
@@ -95,14 +107,21 @@ class Localizer(
         """
         VIO のみを使用して位置を推定する(demo用)
         """
-        (vio_pos, vio_accuracy) = self.estimate_vio()
-        self.positions.append(vio_pos if vio_pos else self.last_position())
+        (vio_pose, vio_accuracy) = self.estimate_vio()
+        self.poses.append(vio_pose if vio_pose else self.last_pose)
 
     @final
     @demo_only
     def _estimate_only_uwb(self) -> None:
         """
         UWB のみを使用して位置を推定する(demo用)
+        total_confidenceが閾値を下回る場合はプロットしない
         """
-        (uwb_pos, uwb_accuracy) = self.estimate_uwb()
-        self.positions.append(uwb_pos if uwb_pos else self.last_position())
+        (uwb_pose, uwb_accuracy) = self.estimate_uwb()
+
+        # total_confidenceの閾値を下回る場合は前の位置を維持
+        if uwb_accuracy >= 0.3:
+            self.poses.append(uwb_pose)
+        else:
+            # 信頼性が低い場合は前の位置を維持（プロットされない）
+            self.poses.append(TimedPose(0, 0, 0, 0, self.timestamp))

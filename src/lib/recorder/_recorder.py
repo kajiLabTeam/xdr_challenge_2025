@@ -1,6 +1,6 @@
 from logging import Logger
 from typing import Protocol, final
-from src.type import Position, SensorData
+from src.type import SensorData, TimedPose
 from ._position import PositionDataRecorder, PositionDataRecorderProtocol
 from ._orientation import OrientationDataRecorder, OrientationDataRecorderProtocol
 from .acce import AcceDataRecorder
@@ -28,10 +28,10 @@ class DataRecorderProtocol(
     viso_datarecorder: VisoDataRecorder
 
     def __init__(self, trial_id: str, logger: Logger): ...
-
     def set_sensor_data(self, sensor_data: SensorData) -> None: ...
-
     def clear_last_appended_data(self) -> None: ...
+    @property
+    def timestamp(self) -> float: ...
 
 
 class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
@@ -39,7 +39,7 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
     データの記録を行うクラス
     """
 
-    def __init__(self, trial_id: str, logger: Logger):
+    def __init__(self, trial_id: str, logger: Logger) -> None:
         """
         Args:
             trial_id (str): トライアルID
@@ -59,18 +59,18 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
         self.viso_datarecorder = VisoDataRecorder(trial_id, logger)
 
     @final
-    def set_init_pos(self, pos: Position) -> None:
+    def set_init_pose(self, pos: TimedPose) -> None:
         """
         初期位置を設定するメソッド
         """
-        if len(self.positions) > 0:
+        if len(self.poses) > 0:
             self.logger.error(
                 "初期位置は一度だけ設定できます。既に位置情報が設定されています"
             )
             return
 
         self.logger.info(f"初期位置を設定: {pos}")
-        self.positions.append(pos)
+        self.poses.append(pos)
 
     @final
     def set_sensor_data(self, sensor_data: SensorData) -> None:
@@ -116,3 +116,28 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
         self.uwbt_datarecorder.clear_last_appended_data()
         self.gpos_datarecorder.clear_last_appended_data()
         self.viso_datarecorder.clear_last_appended_data()
+
+    @final
+    @property
+    def timestamp(self) -> float:
+        """
+        最新のタイムスタンプを取得するプロパティ
+        """
+        if len(self.acc_datarecorder.data) > 0:
+            return self.acc_datarecorder.data[-1]["app_timestamp"]
+        if len(self.gyro_datarecorder.data) > 0:
+            return self.gyro_datarecorder.data[-1]["app_timestamp"]
+        if len(self.magn_datarecorder.data) > 0:
+            return self.magn_datarecorder.data[-1]["app_timestamp"]
+        if len(self.ahrs_datarecorder.data) > 0:
+            return self.ahrs_datarecorder.data[-1]["app_timestamp"]
+        if len(self.uwbp_datarecorder.data) > 0:
+            return self.uwbp_datarecorder.data[-1]["app_timestamp"]
+        if len(self.uwbt_datarecorder.data) > 0:
+            return self.uwbt_datarecorder.data[-1]["app_timestamp"]
+        if len(self.gpos_datarecorder.data) > 0:
+            return self.gpos_datarecorder.data[-1]["app_timestamp"]
+        if len(self.viso_datarecorder.data) > 0:
+            return self.viso_datarecorder.data[-1]["app_timestamp"]
+
+        return 0.0

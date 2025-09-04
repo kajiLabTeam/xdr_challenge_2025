@@ -103,3 +103,34 @@ class Utils:
         logger.setLevel(getattr(logging, loglevel.upper(), logging.INFO))
         logger.addHandler(console_handler)
         logger.addHandler(file_handler)
+
+    @staticmethod
+    def kabsch(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        """
+        Kabaschアルゴリズムで、2つの点群の最適な剛体変換（回転と並進）を求める
+        Args:
+            X: N×D の numpy 配列（点群）
+            Y: N×D の numpy 配列（点群）
+
+        Returns:
+            R (回転行列)
+        """
+        # 原点中心化
+        X_centered = X - X.mean(axis=0)
+        Y_centered = Y - Y.mean(axis=0)
+
+        # 共分散行列
+        H = X_centered.T @ Y_centered
+
+        # SVD
+        U, S, Vt = np.linalg.svd(H)
+
+        # 回転行列
+        R = Vt.T @ U.T
+
+        # 反射を避ける
+        if np.linalg.det(R) < 0:
+            Vt[-1, :] *= -1
+            R = Vt.T @ U.T
+
+        return R
