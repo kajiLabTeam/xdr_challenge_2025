@@ -235,13 +235,13 @@ class UWBLocalizer(DataRecorderProtocol):
             0.0〜1.0の信頼度
         """
         return max(0.0, min(1.0, -0.2 * distance + 1))
-    
+
     @final
     def estimate_device_orientation(self) -> Optional[Tuple[R, float]]:
         """
         AHRSとUWBP/UWBTデータから端末の絶対的な向きを推定
         x軸正方向が0°となるようにヨー角を設定
-        
+
         Returns:
             Tuple[Rotation, confidence]: 端末の姿勢と信頼度 (0.0-1.0)
             推定できない場合はNone
@@ -251,198 +251,199 @@ class UWBLocalizer(DataRecorderProtocol):
         uwbp_data = self.uwbp_datarecorder.last_appended_data
         uwbt_data = list(self.uwbt_datarecorder.data[-100:])
         gpos_data = self.gpos_datarecorder.last_appended_data
-        
+
         if not ahrs_data or not uwbp_data or not uwbt_data or not gpos_data:
             return None
-        
+
         # 最新のAHRSデータから重力ベースのピッチとロールを取得
         latest_ahrs = ahrs_data[-1]
         pitch_deg = latest_ahrs["pitch_x"]  # 重力ベースで信頼できる
-        roll_deg = latest_ahrs["roll_y"]    # 重力ベースで信頼できる
-        
+        roll_deg = latest_ahrs["roll_y"]  # 重力ベースで信頼できる
+
         # UWBから絶対ヨー角を計算
-        yaw_result = self._calculate_absolute_yaw_from_uwb(uwbp_data, uwbt_data, gpos_data)
-        
+        yaw_result = self._calculate_absolute_yaw_from_uwb(
+            uwbp_data, uwbt_data, gpos_data
+        )
+
         if yaw_result is None:
             # UWBでヨーが計算できない場合、AHRSのみを使用（信頼度低）
             yaw_deg = latest_ahrs["yaw_z"]
             confidence = 0.3  # 磁気干渉の可能性があるため低信頼度
         else:
             yaw_deg, confidence = yaw_result
-        
+
         # オイラー角から回転行列を作成（x軸正方向が0°）
         # 注: scipy.spatial.transform.Rotationの'xyz'順序を使用
-        rotation = R.from_euler('xyz', [pitch_deg, roll_deg, yaw_deg], degrees=True)
-        
+        rotation = R.from_euler("xyz", [pitch_deg, roll_deg, yaw_deg], degrees=True)
+
         return (rotation, confidence)
-    
+
     @final
     def _calculate_absolute_yaw_from_uwb(
         self,
         uwbp_data: list[UwbPData],
         uwbt_data: list[UwbTData],
-        gpos_data: list[GposData]
+        gpos_data: list[GposData],
     ) -> Optional[Tuple[float, float]]:
         """
         UWBデータから絶対的なヨー角を計算
         x軸正方向を0°とする座標系
-        
+
         Returns:
             Tuple[yaw_degrees, confidence]: ヨー角（度）と信頼度
             計算できない場合はNone
         """
         best_estimate = None
         best_confidence = 0.0
-        
+
         # 各タグについて処理
         for uwbp in uwbp_data:
             tag_id = uwbp["tag_id"]
-            
+
             # 対応するUWBTデータを探す
             matching_uwbt = None
             for uwbt in uwbt_data:
-                if uwbt["tag_id"] == tag_id and abs(uwbt["app_timestamp"] - uwbp["app_timestamp"]) < 0.1:
+                if (
+                    uwbt["tag_id"] == tag_id
+                    and abs(uwbt["app_timestamp"] - uwbp["app_timestamp"]) < 0.1
+                ):
                     matching_uwbt = uwbt
                     break
-            
+
             if matching_uwbt is None:
                 continue
-            
+
             # 対応するGPOSデータを探す
             matching_gpos = None
             for gpos in gpos_data:
                 if gpos["object_id"] == tag_id:
                     matching_gpos = gpos
                     break
-            
+
             if matching_gpos is None:
                 continue
-            
+
             # このタグペアから端末のヨー角を推定
             yaw_estimate = self._estimate_yaw_from_single_tag(
                 uwbp, matching_uwbt, matching_gpos
             )
-            
+
             if yaw_estimate is not None:
                 yaw_deg, conf = yaw_estimate
                 if conf > best_confidence:
                     best_estimate = yaw_deg
                     best_confidence = conf
-        
+
         if best_estimate is not None:
             return (best_estimate, best_confidence)
-        
+
         return None
-    
+
     @final
     def _estimate_yaw_from_single_tag(
-        self,
-        uwbp: UwbPData,
-        uwbt: UwbTData,
-        gpos: GposData
+        self, uwbp: UwbPData, uwbt: UwbTData, gpos: GposData
     ) -> Optional[Tuple[float, float]]:
         """
         単一タグから端末のヨー角を推定
-        
+
         Returns:
             Tuple[yaw_degrees, confidence]: ヨー角と信頼度
         """
         # タグの姿勢を取得
-        R_tag = R.from_quat([
-            gpos["quat_x"],
-            gpos["quat_y"],
-            gpos["quat_z"],
-            gpos["quat_w"]
-        ])
-        
+        R_tag = R.from_quat(
+            [gpos["quat_x"], gpos["quat_y"], gpos["quat_z"], gpos["quat_w"]]
+        )
+
         # タグから見た端末方向（タグ座標系）
         azimuth_rad = np.radians(uwbt["aoa_azimuth"])
         elevation_rad = np.radians(uwbt["aoa_elevation"])
-        
+
         # タグ座標系での端末方向ベクトル
-        d_tag_to_device_local = np.array([
-            np.cos(elevation_rad) * np.sin(azimuth_rad),
-            np.cos(elevation_rad) * np.cos(azimuth_rad),
-            np.sin(elevation_rad)
-        ])
-        
+        d_tag_to_device_local = np.array(
+            [
+                np.cos(elevation_rad) * np.sin(azimuth_rad),
+                np.cos(elevation_rad) * np.cos(azimuth_rad),
+                np.sin(elevation_rad),
+            ]
+        )
+
         # ワールド座標系での端末方向（タグから見た）
         d_tag_to_device_world = R_tag.apply(d_tag_to_device_local)
-        
+
         # 端末から見たタグ方向（端末座標系）
-        d_device_to_tag = np.array([
-            uwbp["direction_vec_x"],
-            uwbp["direction_vec_y"],
-            uwbp["direction_vec_z"]
-        ])
-        
+        d_device_to_tag = np.array(
+            [uwbp["direction_vec_x"], uwbp["direction_vec_y"], uwbp["direction_vec_z"]]
+        )
+
         # 正規化
         norm = np.linalg.norm(d_device_to_tag)
         if norm <= 0:
             return None
         d_device_to_tag = d_device_to_tag / norm
-        
+
         # ワールド座標系でのタグ方向（端末から見た）は
         # タグから見た端末方向の逆
         d_device_to_tag_world = -d_tag_to_device_world
-        
+
         # 端末のヨー角を計算
         # 端末座標系のy軸（前方）がワールド座標系でどの方向を向いているか
         # d_device_to_tag が端末座標系での方向
         # d_device_to_tag_world がワールド座標系での同じ方向
-        
+
         # 端末座標系での角度
         device_angle = np.arctan2(d_device_to_tag[1], d_device_to_tag[0])
-        
+
         # ワールド座標系での角度（x軸正方向が0）
         world_angle = np.arctan2(d_device_to_tag_world[1], d_device_to_tag_world[0])
-        
+
         # ヨー角 = ワールド角度 - デバイス角度
         yaw_rad = world_angle - device_angle
-        
+
         # -πからπの範囲に正規化
         yaw_rad = np.arctan2(np.sin(yaw_rad), np.cos(yaw_rad))
-        
+
         # 度に変換
         yaw_deg = np.degrees(yaw_rad)
-        
+
         # 信頼度の計算
         distance = uwbp["distance"]
         nlos = uwbt["nlos"]
         time_diff = abs(uwbp["app_timestamp"] - uwbt["app_timestamp"])
-        
+
         # 距離による信頼度（近いほど高い）
         dist_conf = max(0.0, min(1.0, 2.0 / (1.0 + distance)))
-        
+
         # 時間差による信頼度（同期が取れているほど高い）
         time_conf = max(0.0, min(1.0, 1.0 / (1.0 + time_diff * 10)))
-        
+
         # NLOSによる信頼度
         nlos_conf = 0.5 if nlos else 1.0
-        
+
         # 総合信頼度
         confidence = dist_conf * time_conf * nlos_conf
-        
+
         return (yaw_deg, confidence)
-    
+
     @final
-    def estimate_device_quaternion(self) -> Optional[Tuple[npt.NDArray[np.float64], float]]:
+    def estimate_device_quaternion(
+        self,
+    ) -> Optional[Tuple[npt.NDArray[np.float64], float]]:
         """
         端末の姿勢をクォータニオンとして取得
         ground truthと同じ形式で出力
-        
+
         Returns:
             Tuple[quaternion(x,y,z,w), confidence]: クォータニオンと信頼度
             推定できない場合はNone
         """
         orientation_result = self.estimate_device_orientation()
-        
+
         if orientation_result is None:
             return None
-        
+
         rotation, confidence = orientation_result
-        
+
         # scipy形式のクォータニオン(x, y, z, w)を取得
         quat = rotation.as_quat()
-        
+
         return (quat, confidence)
