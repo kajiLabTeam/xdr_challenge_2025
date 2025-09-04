@@ -29,7 +29,7 @@ def pipeline(
     show_plot_map: bool,
     no_save_plot_map: bool,
     immediate: bool,
-    plot_file_name: str = "plot.png",
+    plot_file_suffix: str = "",
 ) -> PipelineResult:
     """
     実行手順の定義
@@ -108,13 +108,17 @@ def pipeline(
     # Ground Truth を取得
     ground_truth_df = GroundTruth.groundtruth(trial_id)
 
-    # 推定結果をマップにプロット
+    # 推定結果をプロット
     localizer.plot_map(
         "map/miraikan_5.bmp",
-        output_dir / plot_file_name,
+        output_dir / f"plot_map{plot_file_suffix}.png",
         show=show_plot_map,
         save=not no_save_plot_map,
         gpos=True,
+        ground_truth_df=ground_truth_df,
+    )
+    localizer.plot_yaw(
+        output_dir / f"plot_yaw{plot_file_suffix}.png",
         ground_truth_df=ground_truth_df,
     )
 
@@ -171,7 +175,7 @@ def process_pipeline(
         False,  # show_plot_map
         True,  # no_save_plot_map
         True,  # immediate
-        plot_file_name=f"plot_{process_i}.png",
+        plot_file_suffix=f"_{process_i}",
     )
 
     logger.info(f"パイプライン終了")

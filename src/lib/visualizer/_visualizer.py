@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation as R
 from src.lib.recorder._recorder import DataRecorderProtocol
 
 
@@ -24,7 +25,7 @@ class Visualizer(DataRecorderProtocol):
         ground_truth_df: pd.DataFrame | None = None,
     ) -> None:
         """
-        推定結果をプロットする
+        推定結果を位置情報をプロットする
 
         Args:
             map_file (str | Path): マップ画像ファイルのパス
@@ -33,8 +34,11 @@ class Visualizer(DataRecorderProtocol):
             map_ppm (float): ピクセルあたりのメートル数
             show (bool): プロットを表示するかどうか
             save (bool): プロットをファイルに保存するかどうか
+            maxwait (float | None): 最大待機時間。None の場合、タイムスタンプをそのまま使用
+            gpos (bool): GPOS の位置情報をプロットするかどうか
+            ground_truth_df (pd.DataFrame | None): 真値のデータフレーム
         """
-        self.logger.info("推定結果をマップにプロットします")
+        self.logger.info("推定結果の位置をマップにプロットします")
 
         src_dir = Path().resolve()
         bitmap_array = np.array(Image.open(src_dir / map_file)) / 255.0
@@ -54,8 +58,9 @@ class Visualizer(DataRecorderProtocol):
         # メインプロット（最終推定結果）
         fig, ax = plt.subplots(1, 1, figsize=(20, 10))
         ax.imshow(bitmap_array, extent=extent, alpha=0.5, cmap="gray")
-        c = df.index * maxwait if maxwait else df.index
-        scatter = ax.scatter(df.x, df.y, s=3, c=c, label="estimated", zorder=100)
+        scatter = ax.scatter(
+            df.x, df.y, s=3, c=df.timestamp, label="estimated", zorder=100
+        )
         if gpos:
             gpos_data = self.gpos_datarecorder.data
             gpos_df = pd.DataFrame(gpos_data)
@@ -91,3 +96,46 @@ class Visualizer(DataRecorderProtocol):
         if show:
             self.logger.info("プロットを表示します")
             plt.show()
+
+    def plot_yaw(
+        self,
+        output_file: str | Path = "output_yaw.png",
+        ground_truth_df: pd.DataFrame | None = None,
+    ) -> None:
+        """
+        推定結果の方位角をプロットする
+
+        Args:
+            output_file (str | Path): 出力ファイルのパス
+            ground_truth_df (pd.DataFrame | None): 真値のデータフレーム
+        """
+        self.logger.info("推定結果の方位角をマップにプロットします")
+
+        fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+        df = pd.DataFrame(self.poses, columns=["x", "y", "z", "yaw", "timestamp"])
+        ax.plot(df.timestamp, df.yaw, label="estimated yaw", color="blue", zorder=100)
+
+        if ground_truth_df is not None:
+            quats = ground_truth_df[["qx", "qy", "qz", "qw"]].to_numpy()
+            rot = R.from_quat(quats)
+            euler = pd.DataFrame(
+                rot.as_euler("zyx", degrees=True),
+                columns=["yaw", "pitch", "roll"],
+                index=ground_truth_df.index,
+            )
+            ground_truth_df_with_euler = pd.concat([ground_truth_df, euler], axis=1)
+            ax.plot(
+                ground_truth_df_with_euler.timestamp,
+                ground_truth_df_with_euler.yaw,
+                label="ground truth yaw",
+                color="black",
+                zorder=50,
+            )
+        ax.set_xlabel("timestamp (s)")
+        ax.set_ylabel("yaw (rad)")
+        plt.legend()
+
+        src_dir = Path().resolve()
+        self.logger.info(f"プロットを {output_file} に保存します")
+        plt.savefig(src_dir / output_file)
+        plt.show()
