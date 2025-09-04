@@ -9,6 +9,7 @@ from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder.gpos import GposData
 from src.lib.recorder.uwbp import UwbPData
 from src.lib.recorder.uwbt import UwbTData
+from src.lib.recorder.ahrs import AhrsData
 from src.lib.utils._utils import Utils
 
 
@@ -20,6 +21,8 @@ class UWBLocalizer(DataRecorderProtocol):
 
     def __init__(self) -> None:
         self.tag_priority = ("3637RLJ", "3636DWF", "3583WAA")
+        self.yaw_history: list[float] = []  # yaw角の履歴（平滑化用）
+        self.max_history_size = 5  # 履歴サイズ
 
     @final
     def estimate_uwb(self) -> EstimateResult:
@@ -73,8 +76,6 @@ class UWBLocalizer(DataRecorderProtocol):
 
         # 最も信頼度の高いタグを選択
         if not uwb_gpos_data_dict:
-            # データがない場合はデバッグログを出力してデフォルト値を返す
-            logging.warning(f"No valid UWB data combinations found - UWBP:{len(uwbp_data)}, UWBT:{len(uwbt_data)}, GPOS:{len(gpos_data)}")
             time = 0.0
             pose = TimedPose(
                 timestamp=time,
@@ -123,12 +124,21 @@ class UWBLocalizer(DataRecorderProtocol):
                     best_estimate = yaw_deg    # 一番信頼度の高いヨー角を記録
                     best_confidence = conf     # そのときの信頼度も更新
 
-        logging.warning(f"Valid yaw estimations: {valid_yaw_count}/{len(yaw_estimations)}")
+       
         if best_estimate is not None:
-            logging.warning(f"Best yaw estimate: {best_estimate:.1f}°, confidence: {best_confidence:.3f}")
-            yaw_rad = np.radians(best_estimate)
+            # 移動平均による平滑化
+            self.yaw_history.append(best_estimate)
+            if len(self.yaw_history) > self.max_history_size:
+                self.yaw_history.pop(0)
+            
+            # 角度の円周平均を計算（-180〜180度の範囲を考慮）
+            yaw_rad_values = [np.radians(y) for y in self.yaw_history]
+            sin_avg = np.mean([np.sin(y) for y in yaw_rad_values])
+            cos_avg = np.mean([np.cos(y) for y in yaw_rad_values])
+            smoothed_yaw_rad = np.arctan2(sin_avg, cos_avg)
+            
+            yaw_rad = smoothed_yaw_rad
         else:
-            logging.warning("No valid yaw estimates found, using 0.0")
             yaw_rad = 0.0
 
         time = selected_tag_data[-1][1]["app_timestamp"]
@@ -271,10 +281,14 @@ class UWBLocalizer(DataRecorderProtocol):
         elevation_rad = np.radians(uwbt["aoa_elevation"])
 
         # タグ座標系での端末方向ベクトル
+        # 標準的な球面座標系: (r, azimuth, elevation)
+        # x = r * cos(elevation) * cos(azimuth) 
+        # y = r * cos(elevation) * sin(azimuth)
+        # z = r * sin(elevation)
         d_tag_to_device_local = np.array(
             [
-                np.cos(elevation_rad) * np.sin(azimuth_rad),
                 np.cos(elevation_rad) * np.cos(azimuth_rad),
+                np.cos(elevation_rad) * np.sin(azimuth_rad),
                 np.sin(elevation_rad),
             ]
         )
@@ -298,18 +312,17 @@ class UWBLocalizer(DataRecorderProtocol):
         d_device_to_tag_world = -d_tag_to_device_world
 
         # 端末のヨー角を計算
-        # 端末座標系での方向ベクトル d_device_to_tag
-        # ワールド座標系での同じ方向ベクトル d_device_to_tag_world
-        # 端末の姿勢を R_device とすると: d_device_to_tag_world = R_device * d_device_to_tag
+        # 端末座標系では通常 y軸が前方、x軸が右方
+        # タグ方向を使って端末のyaw角を推定
         
-        # 端末座標系でのx軸正方向への角度
-        device_angle = np.arctan2(d_device_to_tag[1], d_device_to_tag[0])
-
-        # ワールド座標系でのx軸正方向への角度
-        world_angle = np.arctan2(d_device_to_tag_world[1], d_device_to_tag_world[0])
-
-        # 端末のyaw角 = ワールド座標での観測方向 - 端末座標での観測方向
-        yaw_rad = world_angle - device_angle
+        # 端末座標系での角度（y軸=前方を基準とする、右方向が正）
+        device_yaw_to_tag = np.arctan2(d_device_to_tag[0], d_device_to_tag[1])
+        
+        # ワールド座標系での同じ角度（y軸=North方向を基準とする、East方向が正）  
+        world_yaw_to_tag = np.arctan2(d_device_to_tag_world[0], d_device_to_tag_world[1])
+        
+        # 端末のyaw角 = ワールド座標でのタグ方向 - 端末座標でのタグ方向
+        yaw_rad = world_yaw_to_tag - device_yaw_to_tag
 
         # -πからπの範囲に正規化
         yaw_rad = np.arctan2(np.sin(yaw_rad), np.cos(yaw_rad))
