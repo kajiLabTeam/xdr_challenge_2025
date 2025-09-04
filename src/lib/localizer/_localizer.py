@@ -1,4 +1,5 @@
 from typing import Literal, final
+from logging import Logger
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.decorators.time import timer
@@ -23,6 +24,19 @@ class Localizer(
     """
 
     current_method: Literal["INIT", "PDR", "VIO", "UWB"] = "INIT"
+
+    def __init__(self, trial_id: str, logger: Logger) -> None:
+        """
+        Localizerの初期化
+        各親クラスの__init__を呼び出す
+        """
+        # DataRecorderの__init__を呼び出す
+        DataRecorder.__init__(self, trial_id, logger)
+        # UWBLocalizerの__init__を明示的に呼び出す
+        UWBLocalizer.__init__(self)
+        # 他のクラスにも__init__がある場合はここで呼び出す
+        # PDRLocalizer.__init__(self)
+        # VIOLocalizer.__init__(self)
 
     @final
     @require_attr_appended("poses", 1)

@@ -117,6 +117,14 @@ def pipeline(
         gpos=True,
         ground_truth_df=ground_truth_df,
     )
+    
+    # yaw角の比較グラフを作成
+    localizer.plot_yaw_comparison(
+        output_dir / "yaw_comparison.png",
+        ground_truth_df=ground_truth_df,
+        show=show_plot_map,
+        save=not no_save_plot_map,
+    )
 
     # 評価
     if ground_truth_df is not None:
