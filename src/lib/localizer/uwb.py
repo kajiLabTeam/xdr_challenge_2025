@@ -3,30 +3,12 @@ import numpy.typing as npt
 from typing import final
 from scipy.spatial.transform import Rotation as R
 from src.lib.params._params import Params
-from src.type import EstimateResult, Position
+from src.type import EstimateResult, TimedPose
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder.gpos import GposData
 from src.lib.recorder.uwbp import UwbPData
 from src.lib.recorder.uwbt import UwbTData
 from src.lib.utils._utils import Utils
-
-
-class TagEstimate:
-    """各タグからの推定結果を格納するクラス"""
-
-    def __init__(
-        self,
-        tag_id: str,
-        position: Position,
-        accuracy: float,
-        distance: float,
-        is_nlos: bool = True,
-    ):
-        self.tag_id = tag_id
-        self.position = position
-        self.accuracy = accuracy
-        self.distance = distance
-        self.is_nlos = is_nlos  # Non-Line of Sight フラグ
 
 
 class UWBLocalizer(DataRecorderProtocol):
@@ -48,11 +30,11 @@ class UWBLocalizer(DataRecorderProtocol):
         uwbt_data = self.uwbt_datarecorder.data[-100:]
         gpos_data = self.gpos_datarecorder.last_appended_data
 
-        uwb_data_tag_dict: dict[str, list[tuple[np.ndarray, float, float]]] = {}
-
+        # UWBP, UWBT, GPOSデータの組み合わせを作成
+        uwb_gpos_data_dict: dict[
+            str, list[tuple[float, UwbPData, UwbTData, GposData]]
+        ] = {}
         for uwbp in uwbp_data:
-            current_tag_id = uwbp["tag_id"]
-
             nearest_uwbt = min(
                 uwbt_data,
                 key=lambda x: abs(x["app_timestamp"] - uwbp["app_timestamp"]),
@@ -66,65 +48,39 @@ class UWBLocalizer(DataRecorderProtocol):
             if nearest_uwbt is None or nearest_gpos is None:
                 continue
 
+            tag_id = uwbp["tag_id"]
+            if tag_id not in uwb_gpos_data_dict:
+                uwb_gpos_data_dict[tag_id] = []
+
             accuracy = self._uwb_calc_accuracy(uwbp, nearest_uwbt)
-            pos = self._uwb_to_global_pos_by_uwbp(nearest_gpos, uwbp)
-
-            if pos is None:
-                continue
-
-            if current_tag_id not in uwb_data_tag_dict:
-                uwb_data_tag_dict[current_tag_id] = []
-
-            uwb_data_tag_dict[current_tag_id].append(
-                (
-                    pos,
-                    accuracy,
-                    uwbp["distance"],
-                )
-            )
-
-        if len(uwb_data_tag_dict) == 0:
-            return (Position(0, 0, 0), 0.0)
-
-        # 各タグごとの推定位置を計算して保存
-        tag_estimates: list[TagEstimate] = []
-        for tag_id, pos_acc_list in uwb_data_tag_dict.items():
-            if len(pos_acc_list) == 0:
-                continue
-
-            positions = np.array([p[0] for p in pos_acc_list])
-            accuracies = np.array([p[1] for p in pos_acc_list])
-
-            weighted_position = np.sum(
-                positions * accuracies.reshape(-1, 1), axis=0
-            ) / np.sum(accuracies)
-
-            # 最新の推定を保存
-            mean_distance = float(np.mean([p[2] for p in pos_acc_list]))
-
-            tag_estimates.append(
-                TagEstimate(
-                    tag_id=tag_id,
-                    position=Position(
-                        float(weighted_position[0]),
-                        float(weighted_position[1]),
-                        float(weighted_position[2]),
-                    ),
-                    accuracy=accuracies.mean(),
-                    distance=mean_distance,
-                    is_nlos=False,
-                )
+            uwb_gpos_data_dict[tag_id].append(
+                (accuracy, uwbp, nearest_uwbt, nearest_gpos)
             )
 
         # 最も信頼度の高いタグを選択
-        selected_tag = max(tag_estimates, key=lambda t: t.accuracy, default=None)
-        if selected_tag is None:
-            return (Position(0, 0, 0), 0.0)
-
-        return (
-            selected_tag.position,
-            selected_tag.accuracy,
+        selected_tag_data = max(
+            uwb_gpos_data_dict.values(), key=lambda x: float(np.mean([d for d in x[0]]))
         )
+
+        # 信頼度の加重平均で位置を推定
+        positions = np.array(
+            [self._uwb_to_global_pos_by_uwbp(d[3], d[1]) for d in selected_tag_data]
+        )
+        accuracies = np.array([d[0] for d in selected_tag_data])
+        weighted_position = np.sum(
+            positions * accuracies.reshape(-1, 1), axis=0
+        ) / np.sum(accuracies)
+
+        time = selected_tag_data[-1][1]["app_timestamp"]
+        pose = TimedPose(
+            timestamp=time,
+            x=weighted_position[0],
+            y=weighted_position[1],
+            z=weighted_position[2],
+            yaw=0,  # TODO
+        )
+
+        return (pose, accuracies.mean())
 
     @final
     def _uwb_to_global_pos_by_uwbp(
