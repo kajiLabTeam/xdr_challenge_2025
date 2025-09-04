@@ -1,7 +1,7 @@
 import io
 from logging import Logger
 from urllib.parse import urljoin
-from src.type import Position, SensorData, TimedPose, TrialState
+from src.type import SensorData, TimedPose, TrialState
 import pandas as pd
 from ._base import BaseRequester
 

@@ -13,6 +13,8 @@ import pydantic
 import re
 from scipy.spatial.transform import Rotation as R
 
+from src.lib.utils._utils import Utils
+
 SensorType = Literal["ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"]
 ALLOWED_SENSOR_TYPES = {"ACCE", "GYRO", "MAGN", "AHRS", "UWBP", "UWBT", "GPOS", "VISO"}
 
@@ -79,7 +81,7 @@ class TimedPose(NamedTuple):
         """
         `x,y,yaw` の形式で文字列を返す
         """
-        return f"{self.x},{self.y},{self.yaw}"
+        return f"{self.x},{self.y},{Utils.wrap_angle_pi(self.yaw)}"
 
     def to_position(self) -> Position:
         """

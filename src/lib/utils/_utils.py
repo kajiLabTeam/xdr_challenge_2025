@@ -134,3 +134,15 @@ class Utils:
             R = Vt.T @ U.T
 
         return R
+
+    @staticmethod
+    def wrap_angle_pi(angle_rad: float) -> float:
+        """
+        角度(rad)を -π ～ π の範囲にラップする
+        """
+        wrapped = angle_rad % (2 * np.pi)
+
+        if wrapped <= np.pi:
+            return wrapped
+
+        return wrapped - 2 * np.pi
