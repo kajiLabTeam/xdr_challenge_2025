@@ -28,10 +28,10 @@ class DataRecorderProtocol(
     viso_datarecorder: VisoDataRecorder
 
     def __init__(self, trial_id: str, logger: Logger): ...
-
     def set_sensor_data(self, sensor_data: SensorData) -> None: ...
-
     def clear_last_appended_data(self) -> None: ...
+    @property
+    def timestamp(self) -> float: ...
 
 
 class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
@@ -116,3 +116,28 @@ class DataRecorder(PositionDataRecorder, OrientationDataRecorder):
         self.uwbt_datarecorder.clear_last_appended_data()
         self.gpos_datarecorder.clear_last_appended_data()
         self.viso_datarecorder.clear_last_appended_data()
+
+    @final
+    @property
+    def timestamp(self) -> float:
+        """
+        最新のタイムスタンプを取得するプロパティ
+        """
+        if len(self.acc_datarecorder.data) > 0:
+            return self.acc_datarecorder.data[-1]["app_timestamp"]
+        if len(self.gyro_datarecorder.data) > 0:
+            return self.gyro_datarecorder.data[-1]["app_timestamp"]
+        if len(self.magn_datarecorder.data) > 0:
+            return self.magn_datarecorder.data[-1]["app_timestamp"]
+        if len(self.ahrs_datarecorder.data) > 0:
+            return self.ahrs_datarecorder.data[-1]["app_timestamp"]
+        if len(self.uwbp_datarecorder.data) > 0:
+            return self.uwbp_datarecorder.data[-1]["app_timestamp"]
+        if len(self.uwbt_datarecorder.data) > 0:
+            return self.uwbt_datarecorder.data[-1]["app_timestamp"]
+        if len(self.gpos_datarecorder.data) > 0:
+            return self.gpos_datarecorder.data[-1]["app_timestamp"]
+        if len(self.viso_datarecorder.data) > 0:
+            return self.viso_datarecorder.data[-1]["app_timestamp"]
+
+        return 0.0

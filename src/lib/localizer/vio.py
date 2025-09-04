@@ -6,7 +6,6 @@ from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
-from src.lib.utils._utils import Utils
 from src.type import EstimateResult, Position, TimedPose
 
 
@@ -31,12 +30,11 @@ class VIOLocalizer(DataRecorderProtocol):
             viso_last_data = self.viso_datarecorder.last_appended_data[-1]
             pose = self._vio_to_global_position(viso_last_data)
             if pose is None:
-                time = viso_last_data["app_timestamp"]
-                return (TimedPose(0, 0, 0, 0, time), 0.0)
+                return (TimedPose(0, 0, 0, 0, self.timestamp), 0.0)
             return (pose, 1.0)
         except IndexError:
             self.logger.debug("VISO データがありません")
-            return (TimedPose(0, 0, 0, 0, 0), 0.0)
+            return (TimedPose(0, 0, 0, 0, self.timestamp), 0.0)
 
     @final
     def estimate_vio_orientations(self) -> SafeList[QOrientationWithTimestamp]:
@@ -80,8 +78,8 @@ class VIOLocalizer(DataRecorderProtocol):
             x=rotated_x + first_gpos_data["location_x"],
             y=rotated_y + first_gpos_data["location_y"],
             z=pos.z + first_gpos_data["location_z"],
-            yaw=0,
-            timestamp=0,
+            yaw=0,  # TODO: VISO の方位を取得する
+            timestamp=self.timestamp,
         )
 
     @final

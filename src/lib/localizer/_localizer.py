@@ -118,4 +118,4 @@ class Localizer(
             self.poses.append(uwb_pose)
         else:
             # 信頼性が低い場合は前の位置を維持（プロットされない）
-            self.poses.append(TimedPose(0, 0, 0, 0, uwb_pose.timestamp))
+            self.poses.append(TimedPose(0, 0, 0, 0, self.timestamp))

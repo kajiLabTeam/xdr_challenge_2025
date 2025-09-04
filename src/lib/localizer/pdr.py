@@ -26,8 +26,7 @@ class PDRLocalizer(DataRecorderProtocol):
         )
 
         if len(trajectory) == 0:
-            time = self.acc_datarecorder.last_appended_data[-1]["app_timestamp"]
-            return (TimedPose(x=0, y=0, z=0, yaw=0, timestamp=time), 0.0)
+            return (TimedPose(x=0, y=0, z=0, yaw=0, timestamp=self.timestamp), 0.0)
 
         return (trajectory[-1], 1.0)
 
@@ -121,7 +120,7 @@ class PDRLocalizer(DataRecorderProtocol):
                 step * np.sin(gyro_df["angle"][gyro_i] + init_direction)
                 + trajectory[-1].y
             )
-            trajectory.append(TimedPose(timestamp=0, x=x, y=y, z=0, yaw=0))
+            trajectory.append(TimedPose(x=x, y=y, z=0, yaw=0, timestamp=self.timestamp))
 
         return trajectory
 
