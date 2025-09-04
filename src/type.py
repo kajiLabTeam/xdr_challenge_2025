@@ -66,6 +66,8 @@ class Pixel(NamedTuple):
 
     x: int
     y: int
+
+
 class TimedPose(NamedTuple):
     """
     位置・姿勢・タイムスタンプを表すデータ構造

@@ -163,6 +163,7 @@ class Visualizer(DataRecorderProtocol):
 
         self.logger.info(f"プロットを {output_file} に保存します")
         plt.savefig(output_file)
+
     def plot_yaw(
         self,
         output_file: str | Path = "output_yaw.png",
