@@ -55,15 +55,15 @@ class Evaluation:
             direction="nearest",
         )
 
-        nonzero_mask = sorted_estimates_df[["x", "y", "z"]].ne(0).any(axis=1)
-        valid_mask = ~merged_gt_df[["x", "y", "z"]].isna().any(axis=1) & nonzero_mask
-        filtered_estimates = sorted_estimates_df[["x", "y", "z"]][valid_mask]
-        filtered_merged_gt = merged_gt_df[["x", "y", "z"]][valid_mask]
+        nonzero_mask = sorted_estimates_df[["x", "y"]].ne(0).any(axis=1)
+        valid_mask = ~merged_gt_df[["x", "y"]].isna().any(axis=1) & nonzero_mask
+        filtered_estimates = sorted_estimates_df[["x", "y"]][valid_mask]
+        filtered_merged_gt = merged_gt_df[["x", "y"]][valid_mask]
         if filtered_estimates.empty or filtered_merged_gt.empty:
             logger.warning("マージ後の推定値と実際の値の対応が見つかりませんでした。")
             return None
         diff = filtered_estimates.sub(filtered_merged_gt, axis=0)
-        diff["r"] = np.sqrt(diff["x"] ** 2 + diff["y"] ** 2 + diff["z"] ** 2)
+        diff["r"] = np.sqrt(diff["x"] ** 2 + diff["y"] ** 2)
 
         rmse = np.sqrt((diff["r"] ** 2).mean())
 
