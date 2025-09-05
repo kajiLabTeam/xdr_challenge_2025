@@ -85,11 +85,12 @@ def pipeline(
             logger.info("Ctrl+C が押されました。処理を中断します")
             break
         except Exception as e:
-            if isinstance(e, RequesterError):
-                logger.warning("データの受信に失敗しました。再試行しますか？")
-            else:
-                logger.error(f"予期しないエラーが発生しました。 {e}", exc_info=True)
+            is_demo = Params.demo()
+            if not is_demo:
+                logger.warning("コンペ中はエラーを無視します")
+                continue
 
+            logger.error("再試行しますか？", exc_info=True)
             is_continue = (
                 input("終了する場合は no と入力(no 以外は再試行): ").strip().lower()
             )
