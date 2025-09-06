@@ -75,13 +75,12 @@ class UWBLocalizer(DataRecorderProtocol):
             positions * accuracies.reshape(-1, 1), axis=0
         ) / np.sum(accuracies)
 
-        time = selected_tag_data[-1][1]["app_timestamp"]
         pose = TimedPose(
-            timestamp=time,
             x=weighted_position[0],
             y=weighted_position[1],
             z=weighted_position[2],
             yaw=0,  # TODO
+            timestamp=self.timestamp,
         )
 
         return (pose, accuracies.mean())

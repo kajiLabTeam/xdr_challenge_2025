@@ -113,9 +113,8 @@ class Localizer(
         """
         (uwb_pose, uwb_accuracy) = self.estimate_uwb()
 
-        # total_confidenceの閾値を下回る場合は前の位置を維持
+        print(uwb_accuracy)
         if uwb_accuracy >= 0.3:
             self.poses.append(uwb_pose)
         else:
-            # 信頼性が低い場合は前の位置を維持（プロットされない）
             self.poses.append(TimedPose(0, 0, 0, 0, self.timestamp))
