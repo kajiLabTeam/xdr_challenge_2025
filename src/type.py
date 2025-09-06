@@ -119,17 +119,28 @@ class QOrientation(NamedTuple):
     def __str__(self) -> str:
         return f"({self.w},{self.x},{self.y},{self.z})"
 
-    def to_euler_rad(self) -> tuple[float, float, float]:
+    def to_euler(self, degrees: bool = False) -> tuple[float, float, float]:
         """
         クォータニオンをオイラー角に変換するメソッド
         Returns:
             tuple[float, float, float]: オイラー角 (roll, pitch, yaw)
         """
         r = R.from_quat([self.x, self.y, self.z, self.w])
-        euler = r.as_euler("xyz", degrees=False)
+        euler = r.as_euler("xyz", degrees=degrees)
         roll, pitch, yaw = euler
 
         return float(roll), float(pitch), float(yaw)
+
+    def to_yaw(self) -> float:
+        """
+        クォータニオンをyaw角に変換する
+        Returns:
+            float: yaw角 (radian)
+        """
+        return np.arctan2(
+            2.0 * (self.w * self.z + self.x * self.y),
+            1.0 - 2.0 * (self.y * self.y + self.z * self.z),
+        )
 
 
 class QOrientationWithTimestamp(NamedTuple):
@@ -149,14 +160,14 @@ class QOrientationWithTimestamp(NamedTuple):
     def __str__(self) -> str:
         return f"({self.w},{self.x},{self.y},{self.z})"
 
-    def to_euler_rad(self) -> tuple[float, float, float]:
+    def to_euler(self, degrees: bool = False) -> tuple[float, float, float]:
         """
         クォータニオンをオイラー角に変換するメソッド
         Returns:
             tuple[float, float, float]: オイラー角 (roll, pitch, yaw)
         """
         r = R.from_quat([self.x, self.y, self.z, self.w])
-        euler = r.as_euler("xyz", degrees=False)
+        euler = r.as_euler("xyz", degrees=degrees)
         roll, pitch, yaw = euler
 
         return float(roll), float(pitch), float(yaw)

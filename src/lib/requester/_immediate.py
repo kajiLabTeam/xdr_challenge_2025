@@ -133,7 +133,7 @@ class ImmediateRequester(BaseRequester):
                     s=self.s,
                     x=pose.x,
                     y=pose.y,
-                    z=pose.z,
+                    z=pose.yaw,
                 )
             )
 

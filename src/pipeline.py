@@ -126,7 +126,8 @@ def pipeline(
     # 評価
     if ground_truth_df is not None:
         rmse = Evaluation.evaluate(estimates_df, ground_truth_df, logger)
-        logger.info(f"RMSE: {rmse}")
+        yaw_diff = Evaluation.evaluate_yaw(estimates_df, ground_truth_df, logger)
+        logger.info(f"RMSE: {rmse:.3f}m, Yaw Diff: {yaw_diff:.3f}rad")
     else:
         logger.warning("Ground Truth を取得できませんでした。評価をスキップします")
         rmse = None

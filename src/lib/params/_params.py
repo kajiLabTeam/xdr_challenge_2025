@@ -111,6 +111,14 @@ class Params:
         return 0.25
 
     @staticmethod
+    @float_env_or_call("YAW_ADJUST")
+    def yaw_adjust() -> float:
+        """
+        GPOSのyaw角に対する調整値 (ラジアン)
+        """
+        return np.deg2rad(-5)
+
+    @staticmethod
     @env_exists
     def set_param(env_name: str, value: str | float | bool) -> None:
         """

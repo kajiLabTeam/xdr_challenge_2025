@@ -79,7 +79,7 @@ class UWBLocalizer(DataRecorderProtocol):
             x=weighted_position[0],
             y=weighted_position[1],
             z=weighted_position[2],
-            yaw=0,  # TODO
+            yaw=self.gpos_datarecorder.adjusted_yaw,
             timestamp=self.timestamp,
         )
 

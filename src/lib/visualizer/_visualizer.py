@@ -3,8 +3,8 @@ import pandas as pd
 from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
-from scipy.spatial.transform import Rotation as R
 from src.lib.recorder._recorder import DataRecorderProtocol
+from src.lib.utils import Utils
 
 
 class Visualizer(DataRecorderProtocol):
@@ -23,6 +23,7 @@ class Visualizer(DataRecorderProtocol):
         maxwait: float | None = None,
         gpos: bool = False,
         ground_truth_df: pd.DataFrame | None = None,
+        decimation_rate: int = 50,
     ) -> None:
         """
         推定結果を位置情報をプロットする
@@ -85,6 +86,32 @@ class Visualizer(DataRecorderProtocol):
                 zorder=50,
             )
 
+            if decimation_rate > 0:
+                decimated_df = ground_truth_df.iloc[::decimation_rate].copy()
+                decimated_df["yaw"] = Utils.quaternion_to_yaw(
+                    decimated_df["qw"],
+                    decimated_df["qx"],
+                    decimated_df["qy"],
+                    decimated_df["qz"],
+                )
+                arrow_length = 1.5
+                dx = arrow_length * np.cos(decimated_df.yaw)
+                dy = arrow_length * np.sin(decimated_df.yaw)
+
+                ax.quiver(
+                    decimated_df.x,
+                    decimated_df.y,
+                    dx,
+                    dy,
+                    angles="xy",
+                    scale_units="xy",
+                    scale=1,
+                    color="red",
+                    alpha=0.7,
+                    width=0.003,
+                    label="yaw direction (decimated)",
+                )
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
         plt.colorbar(scatter, ax=ax, label="timestamp (s)")
@@ -113,22 +140,30 @@ class Visualizer(DataRecorderProtocol):
 
         fig, ax = plt.subplots(1, 1, figsize=(10, 5))
         df = pd.DataFrame(self.poses, columns=["x", "y", "z", "yaw", "timestamp"])
-        ax.plot(df.timestamp, df.yaw, label="estimated yaw", color="blue", zorder=100)
+        df["yaw_deg"] = np.degrees(df["yaw"])
+        ax.plot(
+            df.timestamp,
+            df.yaw_deg,
+            label="estimated yaw",
+            color="blue",
+            alpha=0.5,
+            zorder=100,
+        )
 
         if ground_truth_df is not None:
-            quats = ground_truth_df[["qx", "qy", "qz", "qw"]].to_numpy()
-            rot = R.from_quat(quats)
-            euler = pd.DataFrame(
-                rot.as_euler("zyx", degrees=True),
-                columns=["yaw", "pitch", "roll"],
-                index=ground_truth_df.index,
+            ground_truth_df["yaw"] = Utils.quaternion_to_yaw(
+                ground_truth_df["qw"],
+                ground_truth_df["qx"],
+                ground_truth_df["qy"],
+                ground_truth_df["qz"],
             )
-            ground_truth_df_with_euler = pd.concat([ground_truth_df, euler], axis=1)
+            ground_truth_df["yaw_deg"] = np.degrees(ground_truth_df["yaw"])
             ax.plot(
-                ground_truth_df_with_euler.timestamp,
-                ground_truth_df_with_euler.yaw,
+                ground_truth_df.timestamp,
+                ground_truth_df.yaw_deg,
                 label="ground truth yaw",
                 color="black",
+                alpha=0.5,
                 zorder=50,
             )
         ax.set_xlabel("timestamp (s)")

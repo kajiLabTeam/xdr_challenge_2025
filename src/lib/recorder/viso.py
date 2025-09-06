@@ -37,7 +37,6 @@ class VisoDataRecorder(BaseDataRecorder[VisoData]):
         Returns:
             list[QOrientationWithTimestamp]: クォータニオンデータのリスト
         """
-        print(f"→→ {len(self.last_appended_data)}")
         if not self.last_appended_data:
             return SafeList()
 

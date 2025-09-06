@@ -113,7 +113,6 @@ class Localizer(
         """
         (uwb_pose, uwb_accuracy) = self.estimate_uwb()
 
-        print(uwb_accuracy)
         if uwb_accuracy >= 0.3:
             self.poses.append(uwb_pose)
         else:

@@ -1,5 +1,6 @@
 import logging
 import colorlog
+import pandas as pd
 from scipy.stats import norm
 from pathlib import Path
 import numpy as np
@@ -134,3 +135,22 @@ class Utils:
             R = Vt.T @ U.T
 
         return R
+
+    @staticmethod
+    def quaternion_to_yaw(
+        qw: float | pd.Series,
+        qx: float | pd.Series,
+        qy: float | pd.Series,
+        qz: float | pd.Series,
+    ) -> float | np.ndarray:
+        """
+        クォータニオンからyaw角を計算する
+        Args:
+            qw (float | pd.Series): クォータニオンのw成分
+            qx (float | pd.Series): クォータニオンのx成分
+            qy (float | pd.Series): クォータニオンのy成分
+            qz (float | pd.Series): クォータニオンのz成分
+        Returns:
+            float | pd.Series[Any]: yaw角（ラジアン）
+        """
+        return np.arctan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
