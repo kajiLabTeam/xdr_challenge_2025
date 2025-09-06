@@ -3,7 +3,7 @@ import numpy.typing as npt
 from typing import final
 from scipy.spatial.transform import Rotation as R
 from src.lib.params._params import Params
-from src.type import EstimateResult, Position
+from src.type import EstimateResult, Position, TimedPose
 from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder.gpos import GposData
 from src.lib.recorder.uwbp import UwbPData
@@ -84,7 +84,7 @@ class UWBLocalizer(DataRecorderProtocol):
             )
 
         if len(uwb_data_tag_dict) == 0:
-            return (Position(0, 0, 0), 0.0)
+            return (TimedPose(0, 0, 0, 0.0, 0.0), 0.0) 
 
         # 各タグごとの推定位置を計算して保存
         tag_estimates: list[TagEstimate] = []
@@ -119,10 +119,16 @@ class UWBLocalizer(DataRecorderProtocol):
         # 最も信頼度の高いタグを選択
         selected_tag = max(tag_estimates, key=lambda t: t.accuracy, default=None)
         if selected_tag is None:
-            return (Position(0, 0, 0), 0.0)
+            return (TimedPose(0, 0, 0, 0.0, 0.0), 0.0)
 
         return (
-            selected_tag.position,
+            TimedPose(
+                selected_tag.position.x,
+                selected_tag.position.y,
+                selected_tag.position.z,
+                0.0,  # yaw (UWBでは方位情報がないため0とする)
+                0.0,  # timestamp (現在のタイムスタンプを後で追加する必要がある)
+            ),
             selected_tag.accuracy,
         )
 
