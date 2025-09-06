@@ -59,8 +59,12 @@ class UWBLocalizer(DataRecorderProtocol):
 
         # 最も信頼度の高いタグを選択
         selected_tag_data = max(
-            uwb_gpos_data_dict.values(), key=lambda x: float(np.mean([d for d in x[0]]))
+            uwb_gpos_data_dict.values(),
+            key=lambda x: float(np.mean([d[0] for d in x])),
+            default=None,
         )
+        if selected_tag_data is None:
+            return (TimedPose(0, 0, 0, 0, 0), 0.0)
 
         # 信頼度の加重平均で位置を推定
         positions = np.array(
@@ -99,7 +103,7 @@ class UWBLocalizer(DataRecorderProtocol):
 
         # 方向ベクトルを正規化
         direction_norm = np.linalg.norm(direction_vec)
-        if direction_norm <= 0:
+        if direction_norm < 0:
             return None
 
         direction_vec = direction_vec / direction_norm
