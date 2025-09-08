@@ -84,7 +84,7 @@ class UWBLocalizer(DataRecorderProtocol):
             )
 
         if len(uwb_data_tag_dict) == 0:
-            return (TimedPose(0, 0, 0, 0.0, 0.0), 0.0) 
+            return (TimedPose(0, 0, 0, 0.0, 0.0), 0.0)
 
         # 各タグごとの推定位置を計算して保存
         tag_estimates: list[TagEstimate] = []
@@ -223,14 +223,10 @@ class UWBLocalizer(DataRecorderProtocol):
         """
         time_diff = abs(uwbp["app_timestamp"] - uwbt["app_timestamp"])
         time_diff_accuracy = Utils.sigmoid(
-            time_diff, 
-            Params.uwb_time_diff_k(), 
-            Params.uwb_time_diff_x0()
+            time_diff, Params.uwb_time_diff_k(), Params.uwb_time_diff_x0()
         )
         distance_accuracy = Utils.sigmoid(
-            uwbp["distance"], 
-            Params.uwb_distance_k(), 
-            Params.uwb_distance_x0()
+            uwbp["distance"], Params.uwb_distance_k(), Params.uwb_distance_x0()
         )
         los_accuracy = 1.0 if not uwbt["nlos"] else Params.uwb_nlos_factor()
 

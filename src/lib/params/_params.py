@@ -118,7 +118,7 @@ class Params:
         """
         return 7.0
 
-    @staticmethod  
+    @staticmethod
     @float_env_or_call("UWB_TIME_DIFF_X0")
     def uwb_time_diff_x0() -> float:
         """
@@ -127,7 +127,7 @@ class Params:
         return 0.2
 
     @staticmethod
-    @float_env_or_call("UWB_DISTANCE_K") 
+    @float_env_or_call("UWB_DISTANCE_K")
     def uwb_distance_k() -> float:
         """
         UWBにおける距離精度計算のシグモイド勾配パラメータ
