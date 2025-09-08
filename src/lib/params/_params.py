@@ -108,7 +108,7 @@ class Params:
         """
         UWBにおけるNLOSの影響を考慮するための係数
         """
-        return 0.25
+        return 0.3
 
     @staticmethod
     @float_env_or_call("UWB_TIME_DIFF_K")
@@ -116,7 +116,7 @@ class Params:
         """
         UWBにおける時刻差精度計算のシグモイド勾配パラメータ
         """
-        return 5.0
+        return 7.0
 
     @staticmethod  
     @float_env_or_call("UWB_TIME_DIFF_X0")
@@ -124,7 +124,7 @@ class Params:
         """
         UWBにおける時刻差精度計算のシグモイドシフトパラメータ
         """
-        return 0.5
+        return 0.2
 
     @staticmethod
     @float_env_or_call("UWB_DISTANCE_K") 
@@ -132,7 +132,7 @@ class Params:
         """
         UWBにおける距離精度計算のシグモイド勾配パラメータ
         """
-        return 4.0
+        return 3.0
 
     @staticmethod
     @float_env_or_call("UWB_DISTANCE_X0")
@@ -140,7 +140,7 @@ class Params:
         """
         UWBにおける距離精度計算のシグモイドシフトパラメータ
         """
-        return 2.0
+        return 1.5
 
     @staticmethod
     @env_exists
