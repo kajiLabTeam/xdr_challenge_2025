@@ -17,6 +17,8 @@ class UWBLocalizer(DataRecorderProtocol):
     各タグごとに個別の推定軌跡を作成し、保持する。
     """
 
+    _uwb_leave_timestamp: float
+
     def __init__(self) -> None:
         self.tag_priority = ("3637RLJ", "3636DWF", "3583WAA")
 
@@ -74,10 +76,10 @@ class UWBLocalizer(DataRecorderProtocol):
             if pos is not None:
                 valid_positions.append(pos)
                 valid_accuracies.append(d[0])
-        
+
         if not valid_positions:
             return (TimedPose(0, 0, 0, 0, 0), 0.0)
-        
+
         positions = np.array(valid_positions)
         accuracies = np.array(valid_accuracies)
         weighted_position = np.sum(
