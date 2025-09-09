@@ -141,7 +141,7 @@ class Requester(BaseRequester):
             self.logger.error("リクエストに含まれるパラメータが無効です")
             return None
         elif res.status_code == 423:
-            self.logger.error("クライアントがAPIを呼び出す頻度が速すぎます")
+            # self.logger.error("クライアントがAPIを呼び出す頻度が速すぎます")
             return None
 
         self.logger.error(
