@@ -67,10 +67,19 @@ class UWBLocalizer(DataRecorderProtocol):
             return (TimedPose(0, 0, 0, 0, 0), 0.0)
 
         # 信頼度の加重平均で位置を推定
-        positions = np.array(
-            [self._uwb_to_global_pos_by_uwbp(d[3], d[1]) for d in selected_tag_data]
-        )
-        accuracies = np.array([d[0] for d in selected_tag_data])
+        valid_positions = []
+        valid_accuracies = []
+        for d in selected_tag_data:
+            pos = self._uwb_to_global_pos_by_uwbp(d[3], d[1])
+            if pos is not None:
+                valid_positions.append(pos)
+                valid_accuracies.append(d[0])
+        
+        if not valid_positions:
+            return (TimedPose(0, 0, 0, 0, 0), 0.0)
+        
+        positions = np.array(valid_positions)
+        accuracies = np.array(valid_accuracies)
         weighted_position = np.sum(
             positions * accuracies.reshape(-1, 1), axis=0
         ) / np.sum(accuracies)
