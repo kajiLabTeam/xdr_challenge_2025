@@ -108,7 +108,39 @@ class Params:
         """
         UWBにおけるNLOSの影響を考慮するための係数
         """
-        return 0.25
+        return 0.3
+
+    @staticmethod
+    @float_env_or_call("UWB_TIME_DIFF_K")
+    def uwb_time_diff_k() -> float:
+        """
+        UWBにおける時刻差精度計算のシグモイド勾配パラメータ
+        """
+        return 7.0
+
+    @staticmethod
+    @float_env_or_call("UWB_TIME_DIFF_X0")
+    def uwb_time_diff_x0() -> float:
+        """
+        UWBにおける時刻差精度計算のシグモイドシフトパラメータ
+        """
+        return 0.2
+
+    @staticmethod
+    @float_env_or_call("UWB_DISTANCE_K")
+    def uwb_distance_k() -> float:
+        """
+        UWBにおける距離精度計算のシグモイド勾配パラメータ
+        """
+        return 3.0
+
+    @staticmethod
+    @float_env_or_call("UWB_DISTANCE_X0")
+    def uwb_distance_x0() -> float:
+        """
+        UWBにおける距離精度計算のシグモイドシフトパラメータ
+        """
+        return 1.5
 
     @staticmethod
     @float_env_or_call("YAW_ADJUST")

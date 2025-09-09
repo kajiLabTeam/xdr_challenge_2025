@@ -175,8 +175,12 @@ class UWBLocalizer(DataRecorderProtocol):
         信頼度を計算する
         """
         time_diff = abs(uwbp["app_timestamp"] - uwbt["app_timestamp"])
-        time_diff_accuracy = Utils.sigmoid(time_diff, 5, 0.5)
-        distance_accuracy = Utils.sigmoid(uwbp["distance"], 4, 2.0)
+        time_diff_accuracy = Utils.sigmoid(
+            time_diff, Params.uwb_time_diff_k(), Params.uwb_time_diff_x0()
+        )
+        distance_accuracy = Utils.sigmoid(
+            uwbp["distance"], Params.uwb_distance_k(), Params.uwb_distance_x0()
+        )
         los_accuracy = 1.0 if not uwbt["nlos"] else Params.uwb_nlos_factor()
 
         return time_diff_accuracy * distance_accuracy * los_accuracy
