@@ -74,8 +74,10 @@ class UWBLocalizer(DataRecorderProtocol):
             if pos is not None:
                 valid_positions.append(pos)
                 valid_accuracies.append(d[0])
+
         if not valid_positions:
             return (TimedPose(0, 0, 0, 0, 0), 0.0)
+
         positions = np.array(valid_positions)
         accuracies = np.array(valid_accuracies)
         weighted_position = np.sum(
