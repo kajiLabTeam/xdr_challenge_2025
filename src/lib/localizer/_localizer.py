@@ -63,12 +63,10 @@ class Localizer(
             return
 
         # VIO の信頼度が 0.8 以上の場合は VIO を使用 TODO: 調整
+        if self.current_method != "VIO":
+            self.switch_to_vio(self.last_pose)
         (vio_pose, vio_accuracy) = self.estimate_vio()
         if vio_accuracy > 0.8:
-
-            if self.current_method != "VIO":
-                self.switch_to_vio(self.last_pose)
-
             self.current_method = "VIO"
             self.poses.append(vio_pose)
             return
