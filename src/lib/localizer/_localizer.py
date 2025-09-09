@@ -1,4 +1,6 @@
 from typing import Literal, final
+
+import numpy as np
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.decorators.time import timer
@@ -56,13 +58,11 @@ class Localizer(
         """
         (uwb_pose, uwb_accuracy) = self.estimate_uwb()
 
-        # UWB の信頼度が 0.5 以上の場合は UWB を使用
         if uwb_accuracy >= 0.5 and uwb_pose:
             self.current_method = "UWB"
             self.poses.append(uwb_pose)
             return
 
-        # VIO の信頼度が 0.8 以上の場合は VIO を使用 TODO: 調整
         if self.current_method != "VIO":
             self.switch_to_vio(self.last_pose)
         (vio_pose, vio_accuracy) = self.estimate_vio()
@@ -71,9 +71,10 @@ class Localizer(
             self.poses.append(vio_pose)
             return
 
-        # PDR の信頼度が 0.8 以上の場合は PDR を使用 TODO: 調整
         if self.current_method != "PDR":
-            self.switch_to_pdr(self.timestamp, self.last_pose)
+            self.switch_to_pdr(
+                self.timestamp, self.last_pose, np.deg2rad(270)
+            )  # TODO:  初期進行方向の調整(第3引数を省略する最後の yaw を使う(多分))
             self.current_method = "PDR"
         (pdr_pose, pdr_accuracy) = self.estimate_pdr()
 

@@ -57,6 +57,9 @@ class PDRLocalizer(DataRecorderProtocol):
 
         # 角度の計算
         gyro_df["angle"] = np.cumsum(gyro_df["gyr_x"]) / gyro_fs
+        # TODO:  が True の場合は角度を反転
+        if self._pdr_inverted:
+            gyro_df["angle"] = -gyro_df["angle"]
 
         # 移動平均フィルタ
         window_acc_frame = int(Params.window_acc_sec() * acce_fs)
@@ -137,3 +140,11 @@ class PDRLocalizer(DataRecorderProtocol):
         self._pdr_start_timestamp = timestamp
         self._pdr_init_pose = init_pose
         self._pdr_init_direction = init_direction if init_direction else init_pose.yaw
+
+        # TODO: 重力方向が反転しているかを確認
+        first_acc_data = self.acc_datarecorder.first_data
+        # first_acc_data["acc_x"] の重力方向から向きを出す
+        self._pdr_inverted = (
+            # False  # 端末の向きが反転していない場合(demo 001.txt は False)
+            True  # 端末の向きが反転している場合(demo 001.txt を基準とする)
+        )
