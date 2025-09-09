@@ -118,43 +118,29 @@ class PDRLocalizer(DataRecorderProtocol):
             raise ValueError("初期位置がありません")
         
         trajectory: list[Position] = [init_pos]
-        #print(trajectory[-1])
 
         # TODO
         for step in steps:
             #prev
-            p_though_y = step.prev_trough.acce_y#前半極小y
-            p_though_z = step.prev_trough.acce_z#前半極小z
             p_peak_y = step.prev_peak.acce_y#前半極大y
             p_peak_z = step.prev_peak.acce_z#z
-            p_theta = step.prev_peak.angle#角度
 
             #next
-            n_though_y = step.next_trough.acce_y#後半極小y
-            n_though_z = step.next_trough.acce_z#z
             n_peak_y = step.next_peak.acce_y#後半極大y
             n_peak_z = step.next_peak.acce_z#z
             n_theta = step.next_peak.angle#角度
 
-            #極小を基準にベクトル回転
-            rotate_prev_y = p_peak_y - p_though_y * np.cos(-p_theta) - p_peak_z - p_though_z * np.sin(-p_theta) + p_though_y
-            rotate_prev_z = p_peak_y - p_though_y * np.cos(-p_theta) + p_peak_z - p_though_z * np.sin(-p_theta) + p_though_z
-            rotate_next_y = n_peak_y - n_though_y * np.cos(-n_theta) - n_peak_z - n_though_z * np.sin(-n_theta) + n_though_y
-            rotate_next_z = n_peak_y - n_though_y * np.cos(-n_theta) + n_peak_z - n_though_z * np.sin(-n_theta) + n_though_z
-
             #直進方向ベクトルとの角度を算出
-            rotate_angle = np.pi / 2 - np.arctan2(rotate_next_y - rotate_prev_y, rotate_next_z - rotate_prev_z)
+            rotate_angle = -(np.pi / 2) - np.arctan2(n_peak_z - p_peak_z, n_peak_y - p_peak_y)
+            angle = n_theta + rotate_angle
 
             #歩幅
             stride = 0.3
 
             #座標更新
-            x = stride * np.cos(rotate_angle) + trajectory[-1][0]
-            y = stride * np.sin(rotate_angle) + trajectory[-1][1]
-            #trajectory[-1] = Position(x, y, trajectory[-1][2])
+            x = stride * np.cos(angle) + trajectory[-1][0]
+            y = stride * np.sin(angle) + trajectory[-1][1]
             trajectory.append(Position(x, y, trajectory[-1][2]))
-            #print(trajectory[-1])
-        #print(trajectory)
         return (trajectory[-1], 1.0)  # TODO
 
     @final
@@ -225,6 +211,7 @@ class PDRLocalizer(DataRecorderProtocol):
         Series から ExtremaWithAngle に変換する
         angle は gyro_df の trough_timestamp から s["timestamp"] までの変化量
         """
+        '''
         filtered_gyro = gyro_df.loc[
             (trough_timestamp <= gyro_df["app_timestamp"])
             & (gyro_df["app_timestamp"] <= s["timestamp"])
@@ -233,7 +220,14 @@ class PDRLocalizer(DataRecorderProtocol):
         filtered_gyro_fs = len(filtered_gyro) / (
             filtered_gyro["app_timestamp"].max() - filtered_gyro["app_timestamp"].min()
         )
-        angle = filtered_gyro["gyr_z"].sum() * filtered_gyro_fs
+        '''
+        filtered_gyro = gyro_df.loc[
+            gyro_df["app_timestamp"] <= s["timestamp"]
+        ]
+        gyro_fs = len(filtered_gyro) / (
+            filtered_gyro["app_timestamp"].max() - filtered_gyro["app_timestamp"].min())
+        angle = filtered_gyro["gyr_x"].sum() / gyro_fs
+        #angle = np.cumsum(filtered_gyro["gyr_x"]) * filtered_gyro_fs
 
         return ExtremaWithAngle(
             is_peak=bool(s["is_peak"]),
