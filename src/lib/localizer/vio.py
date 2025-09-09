@@ -121,8 +121,6 @@ class VIOLocalizer(DataRecorderProtocol):
             self.logger.info(f"timestamp_max: {timestamp_max}, {len(df)}")
             viso_df = viso_df[viso_df["app_timestamp"] <= timestamp_max]
             gpos_df = gpos_df[gpos_df["app_timestamp"] <= timestamp_max]
-            np.savetxt("viso_positions.csv", viso_df[["location_x", "location_y"]].to_numpy(), delimiter=",")
-            np.savetxt("gpos_positions.csv", gpos_df[["location_x", "location_y"]].to_numpy(), delimiter=",")
 
         V = df[["location_x_viso", "location_y_viso"]].to_numpy()
         G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
