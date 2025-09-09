@@ -49,7 +49,6 @@ class Params:
     def step() -> float:
         """
         PDRにおけるステップ幅の固定値 (メートル)
-        TODO: 動的に計算するようにする
         """
         return 0.4
 
@@ -74,7 +73,6 @@ class Params:
     def init_angle_rad() -> float:
         """
         PDRにおける初期角度 (ラジアン)
-        TODO: 動的に計算するようにする
         """
         return np.deg2rad(80)
 
