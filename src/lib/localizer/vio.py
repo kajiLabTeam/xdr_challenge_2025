@@ -132,6 +132,9 @@ class VIOLocalizer(DataRecorderProtocol):
 
         if timestamp_max is not None:
             self._viso_init_direction = R
+            # V と G をファイルに保存
+            np.savetxt("viso_positions.csv", V, delimiter=",")
+            np.savetxt("gpos_positions.csv", G, delimiter=",")
 
         return R
 
