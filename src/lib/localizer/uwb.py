@@ -102,7 +102,7 @@ class UWBLocalizer(DataRecorderProtocol):
 
         # 方向ベクトルを正規化
         direction_norm = np.linalg.norm(direction_vec)
-        if direction_norm < 0:
+        if direction_norm <= 0:
             return None
 
         direction_vec = direction_vec / direction_norm
