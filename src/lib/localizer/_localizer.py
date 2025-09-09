@@ -65,14 +65,17 @@ class Localizer(
         # VIO の信頼度が 0.8 以上の場合は VIO を使用 TODO: 調整
         (vio_pose, vio_accuracy) = self.estimate_vio()
         if vio_accuracy > 0.8:
+
+            if self.current_method != "VIO":
+                self.switch_to_vio(self.last_pose)
+
             self.current_method = "VIO"
             self.poses.append(vio_pose)
             return
 
         # PDR の信頼度が 0.8 以上の場合は PDR を使用 TODO: 調整
         if self.current_method != "PDR":
-            last_time = self.acc_datarecorder.last_appended_data[-1]["app_timestamp"]
-            self.switch_to_pdr(last_time, self.last_pose, 0)  # TODO: 方向の指定
+            self.switch_to_pdr(self.timestamp, self.last_pose)
             self.current_method = "PDR"
         (pdr_pose, pdr_accuracy) = self.estimate_pdr()
 
@@ -101,6 +104,8 @@ class Localizer(
         """
         VIO のみを使用して位置を推定する(demo用)
         """
+        if self.current_method != "VIO":
+            self.switch_to_vio(self.last_pose)
         (vio_pose, vio_accuracy) = self.estimate_vio()
         self.poses.append(vio_pose if vio_pose else self.last_pose)
 

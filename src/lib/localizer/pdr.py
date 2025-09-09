@@ -126,11 +126,14 @@ class PDRLocalizer(DataRecorderProtocol):
 
     @final
     def switch_to_pdr(
-        self, timestamp: float, init_pose: TimedPose, init_direction: float
+        self,
+        timestamp: float,
+        init_pose: TimedPose,
+        init_direction: float | None = None,
     ) -> None:
         """
         PDR切り替え時の初期設定を行う
         """
         self._pdr_start_timestamp = timestamp
         self._pdr_init_pose = init_pose
-        self._pdr_init_direction = init_direction
+        self._pdr_init_direction = init_direction if init_direction else init_pose.yaw

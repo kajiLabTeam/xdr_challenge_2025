@@ -1,4 +1,4 @@
-from typing import final
+from typing import cast, final
 import numpy as np
 import pandas as pd
 from scipy.linalg import orthogonal_procrustes
@@ -6,7 +6,8 @@ from src.lib.recorder import DataRecorderProtocol
 from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
-from src.type import EstimateResult, Position, TimedPose
+from src.lib.utils._utils import Utils
+from src.type import EstimateResult, Position, QOrientation, TimedPose
 
 
 class VIOLocalizer(DataRecorderProtocol):
@@ -59,7 +60,11 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         first_gpos_data = self.gpos_datarecorder.first_data
         first_viso_data = self.viso_datarecorder.first_data
-        init_dir = self._vio_initialize_direction()
+        init_dir = (
+            self._vio_init_direction
+            if self._vio_init_direction
+            else self._vio_initialize_direction()
+        )
 
         if first_gpos_data is None or first_viso_data is None or init_dir is None:
             return None
@@ -73,12 +78,19 @@ class VIOLocalizer(DataRecorderProtocol):
         # 初期方向を考慮して回転
         rotated_x = pos.x * np.cos(init_dir) - pos.y * np.sin(init_dir)
         rotated_y = pos.x * np.sin(init_dir) + pos.y * np.cos(init_dir)
+        yaw_original = Utils.quaternion_to_yaw(
+            data["quat_w"],
+            data["quat_x"],
+            data["quat_y"],
+            data["quat_z"],
+        )
+        yaw = cast(float, yaw_original) - init_dir
 
         return TimedPose(
             x=rotated_x + first_gpos_data["location_x"],
             y=rotated_y + first_gpos_data["location_y"],
             z=pos.z + first_gpos_data["location_z"],
-            yaw=0,  # TODO: VISO の方位を取得する
+            yaw=yaw,
             timestamp=self.timestamp,
         )
 
@@ -123,8 +135,12 @@ class VIOLocalizer(DataRecorderProtocol):
 
         # 初期方向を設定
         self._viso_init_direction = angle_rad
-        self.logger.info(
-            f"VISO の初期方向を設定: {angle_rad:.1f}rad ({angle_deg:.1f}deg)"
-        )
 
         return angle_rad
+
+    @final
+    def switch_to_vio(self, pose: TimedPose) -> None:
+        """
+        PDR切り替え時の初期設定を行う
+        """
+        self._vio_init_direction = pose.yaw
