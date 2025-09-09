@@ -60,11 +60,7 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         first_gpos_data = self.gpos_datarecorder.first_data
         first_viso_data = self.viso_datarecorder.first_data
-        init_dir = (
-            self._vio_init_direction
-            if self._vio_init_direction
-            else self._vio_initialize_direction()
-        )
+        init_dir = self._vio_initialize_direction()
 
         if first_gpos_data is None or first_viso_data is None or init_dir is None:
             return None
@@ -84,7 +80,9 @@ class VIOLocalizer(DataRecorderProtocol):
             data["quat_y"],
             data["quat_z"],
         )
-        yaw = cast(float, yaw_original) - init_dir
+        yaw = (
+            cast(float, yaw_original) - self._vio_switched_original_yaw
+        ) + self._vio_switched_yaw
 
         return TimedPose(
             x=rotated_x + first_gpos_data["location_x"],
@@ -143,4 +141,12 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         PDR切り替え時の初期設定を行う
         """
-        self._vio_init_direction = pose.yaw
+        last_data = self.viso_datarecorder.data[-1]
+        original_yaw = Utils.quaternion_to_yaw(
+            last_data["quat_w"],
+            last_data["quat_x"],
+            last_data["quat_y"],
+            last_data["quat_z"],
+        )
+        self._vio_switched_original_yaw = cast(float, original_yaw)
+        self._vio_switched_yaw = pose.yaw
