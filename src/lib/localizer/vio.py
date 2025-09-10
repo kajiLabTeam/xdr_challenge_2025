@@ -7,7 +7,7 @@ from src.lib.recorder._orientation import QOrientationWithTimestamp
 from src.lib.recorder.viso import VisoData
 from src.lib.safelist._safelist import SafeList
 from src.lib.utils._utils import Utils
-from src.type import EstimateResult, Position, QOrientation, TimedPose
+from src.type import EstimateResult, Position, TimedPose
 
 
 class VIOLocalizer(DataRecorderProtocol):
@@ -16,7 +16,7 @@ class VIOLocalizer(DataRecorderProtocol):
     """
 
     def __init__(self) -> None:
-        self._viso_init_direction: float | None = None
+        self._viso_init_direction: np.ndarray | None = None
         self._viso_orientations: SafeList[QOrientationWithTimestamp] = SafeList()
         self._viso_tmp_positions: SafeList[Position] = SafeList()
         self._vio_leave_timestamp: float | None = None
@@ -61,20 +61,21 @@ class VIOLocalizer(DataRecorderProtocol):
         """
         first_gpos_data = self.gpos_datarecorder.first_data
         first_viso_data = self.viso_datarecorder.first_data
-        init_dir = self._vio_initialize_direction()
+        R = self._vio_calc_rotation_matrix()
 
-        if first_gpos_data is None or first_viso_data is None or init_dir is None:
+        if first_gpos_data is None or first_viso_data is None or R is None:
             return None
 
-        pos = Position(
-            x=data["location_x"] - first_viso_data["location_x"],
-            y=data["location_y"] - first_viso_data["location_y"],
-            z=data["location_z"] - first_viso_data["location_z"],
+        z = data["location_z"] - first_viso_data["location_z"]
+        vec = np.array(
+            [
+                data["location_x"] - first_viso_data["location_x"],
+                data["location_y"] - first_viso_data["location_y"],
+            ]
         )
+        rotated_vec = R @ vec
 
         # 初期方向を考慮して回転
-        rotated_x = pos.x * np.cos(init_dir) - pos.y * np.sin(init_dir)
-        rotated_y = pos.x * np.sin(init_dir) + pos.y * np.cos(init_dir)
         yaw_original = Utils.quaternion_to_yaw(
             data["quat_w"],
             data["quat_x"],
@@ -86,15 +87,15 @@ class VIOLocalizer(DataRecorderProtocol):
         ) + self._vio_switched_yaw
 
         return TimedPose(
-            x=rotated_x + first_gpos_data["location_x"],
-            y=rotated_y + first_gpos_data["location_y"],
-            z=pos.z + first_gpos_data["location_z"],
+            x=rotated_vec[0] + first_gpos_data["location_x"],
+            y=rotated_vec[1] + first_gpos_data["location_y"],
+            z=z + first_gpos_data["location_z"],
             yaw=yaw,
             timestamp=self.timestamp,
         )
 
     @final
-    def _vio_initialize_direction(self) -> float | None:
+    def _vio_calc_rotation_matrix(self) -> np.ndarray | None:
         """
         VISO の初期方向が設定されていない場合、 プロクラステス分析で初期方向を設定する
         Args:
@@ -107,7 +108,11 @@ class VIOLocalizer(DataRecorderProtocol):
 
         viso_df = self.viso_datarecorder.df
         gpos_df = self.gpos_datarecorder.df
-        timestamp_max = self._vio_get_uwb_leave_timestamp(2.0)
+        timestamp_max = self._vio_get_uwb_leave_timestamp()
+
+        if timestamp_max is not None:
+            viso_df = viso_df[viso_df["app_timestamp"] <= timestamp_max]
+            gpos_df = gpos_df[gpos_df["app_timestamp"] <= timestamp_max]
 
         df = pd.merge_asof(
             viso_df,
@@ -117,32 +122,21 @@ class VIOLocalizer(DataRecorderProtocol):
             suffixes=("_viso", "_gpos"),
         )
 
-        if timestamp_max is not None:
-            self.logger.info(f"timestamp_max: {timestamp_max}, {len(df)}")
-            viso_df = viso_df[viso_df["app_timestamp"] <= timestamp_max]
-            gpos_df = gpos_df[gpos_df["app_timestamp"] <= timestamp_max]
-
         V = df[["location_x_viso", "location_y_viso"]].to_numpy()
         G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
 
+        V -= V[0]
+        G -= G[0]
+
         R, _ = orthogonal_procrustes(V, G)
-        # -180° ~ 180° に正規化
-        angle_rad = np.arctan2(R[1, 0], R[0, 0]) % (2 * np.pi) - np.pi
-
-        vio_last_data = self.viso_datarecorder.data[-1]
-        x = vio_last_data["location_x"]
-        y = vio_last_data["location_y"]
-
-        is_inverted = y < x  # y=x の直線より下の場合は逆向きとみなす
-        if is_inverted and abs(angle_rad) < np.pi / 2:
-            angle_rad = (angle_rad + np.pi) % (2 * np.pi)
-
-        angle_deg = np.degrees(angle_rad)
 
         if timestamp_max is not None:
-            self._viso_init_direction = angle_rad
+            self._viso_init_direction = R
+            # V と G をファイルに保存
+            np.savetxt("viso_positions.csv", V, delimiter=",")
+            np.savetxt("gpos_positions.csv", G, delimiter=",")
 
-        return angle_rad
+        return R
 
     @final
     def switch_to_vio(self, pose: TimedPose) -> None:
