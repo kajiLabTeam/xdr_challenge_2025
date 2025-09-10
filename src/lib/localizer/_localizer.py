@@ -1,6 +1,5 @@
 from typing import Literal, final
 
-import numpy as np
 from src.lib.decorators.demo_only import demo_only
 from src.lib.decorators.attr_check import require_attr_appended
 from src.lib.decorators.time import timer
@@ -73,8 +72,8 @@ class Localizer(
 
         if self.current_method != "PDR":
             self.switch_to_pdr(
-                self.timestamp, self.last_pose, np.deg2rad(270)
-            )  # TODO:  初期進行方向の調整(第3引数を省略する最後の yaw を使う(多分))
+                self.timestamp, self.last_pose, self.last_pose.yaw
+            )  # 初期進行方向として最後の yaw 角度を使用
             self.current_method = "PDR"
         (pdr_pose, pdr_accuracy) = self.estimate_pdr()
 
