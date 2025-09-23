@@ -19,7 +19,6 @@ class VIOLocalizer(DataRecorderProtocol):
         self._viso_init_direction: float | None = None
         self._viso_orientations: SafeList[QOrientationWithTimestamp] = SafeList()
         self._viso_tmp_positions: SafeList[Position] = SafeList()
-        self._vio_leave_timestamp: float | None = None
 
     @final
     def estimate_vio(self) -> EstimateResult:
@@ -102,13 +101,8 @@ class VIOLocalizer(DataRecorderProtocol):
         Returns:
             float: VISO の初期方向(ラジアン)
         """
-        if hasattr(self, "_viso_init_direction"):
-            return self._viso_init_direction
-
         viso_df = self.viso_datarecorder.df
         gpos_df = self.gpos_datarecorder.df
-        timestamp_max = self._vio_get_uwb_leave_timestamp(2.0)
-
         df = pd.merge_asof(
             viso_df,
             gpos_df,
@@ -117,10 +111,8 @@ class VIOLocalizer(DataRecorderProtocol):
             suffixes=("_viso", "_gpos"),
         )
 
-        if timestamp_max is not None:
-            self.logger.info(f"timestamp_max: {timestamp_max}, {len(df)}")
-            viso_df = viso_df[viso_df["app_timestamp"] <= timestamp_max]
-            gpos_df = gpos_df[gpos_df["app_timestamp"] <= timestamp_max]
+        if len(df) > 4000:
+            return self._viso_init_direction
 
         V = df[["location_x_viso", "location_y_viso"]].to_numpy()
         G = df[["location_x_gpos", "location_y_gpos"]].to_numpy()
@@ -139,8 +131,8 @@ class VIOLocalizer(DataRecorderProtocol):
 
         angle_deg = np.degrees(angle_rad)
 
-        if timestamp_max is not None:
-            self._viso_init_direction = angle_rad
+        # 初期方向を設定
+        self._viso_init_direction = angle_rad
 
         return angle_rad
 
@@ -158,23 +150,3 @@ class VIOLocalizer(DataRecorderProtocol):
         )
         self._vio_switched_original_yaw = cast(float, original_yaw)
         self._vio_switched_yaw = pose.yaw
-
-    @final
-    def _vio_get_uwb_leave_timestamp(self, threshold: float = 2.0) -> float | None:
-        """
-        UWBがAIスーツケースから threshold[m]以上離れた最初のタイムスタンプを取得する
-        """
-        if hasattr(self, "_vio_leave_timestamp"):
-            return self._vio_leave_timestamp
-
-        uwbt_data = self.uwbt_datarecorder.last_appended_data
-
-        if len(uwbt_data) == 0:
-            return None
-
-        last_data = uwbt_data[-1]
-        if last_data["distance"] < threshold:
-            return None
-
-        self._vio_leave_timestamp = last_data["app_timestamp"]
-        return last_data["app_timestamp"]
