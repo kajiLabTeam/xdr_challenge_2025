@@ -51,7 +51,7 @@ trial2:
 trial4:
   datafile: s04.txt
   groundtruthfile: s04.csv
-  1commsep: "%"
+  commsep: "%"
   sepch: ";"
   V: 3
   S: 15
