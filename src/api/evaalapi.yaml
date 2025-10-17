@@ -37,3 +37,45 @@ demo5:
   S: 15
   inipos: 41.368;-10.047;0.935
   reloadable: True
+
+trial2:
+  datafile: s02.txt
+  groundtruthfile: s02.csv
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 41.368;-10.047;0.935
+  reloadable: True
+
+trial4:
+  datafile: s04.txt
+  groundtruthfile: s04.csv
+  1commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 41.368;-10.047;0.935
+  reloadable: True    
+
+trial5:
+  datafile: s05.txt
+  groundtruthfile: s05.csv
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 41.368;-10.047;0.935
+  reloadable: True
+
+trial7:
+  datafile: s07.txt
+  groundtruthfile: s07.csv
+  commsep: "%"
+  sepch: ";"
+  V: 3
+  S: 15
+  inipos: 41.368;-10.047;0.935
+  reloadable: True
+
+
